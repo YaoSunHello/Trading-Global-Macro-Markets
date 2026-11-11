@@ -1,0 +1,285 @@
+# Canonical series and their provider mappings. Adding a series = adding an entry here
+# (see docs/ONBOARDING.md). Mappings record the provider choice, alternatives and limitations.
+datasets:
+  - {dataset_id: fred_series_observations, provider: fred, name: FRED/ALFRED series observations,
+     url: https://fred.stlouisfed.org/docs/api/fred/series_observations.html}
+  - {dataset_id: ecb_sdmx, provider: ecb, name: ECB Data Portal SDMX data, url: https://data.ecb.europa.eu}
+  - {dataset_id: tsy_avg_interest_rates, provider: treasury, name: Average Interest Rates on U.S. Treasury Securities,
+     url: https://fiscaldata.treasury.gov/datasets/average-interest-rates-treasury-securities/}
+  - {dataset_id: yahoo_chart, provider: yahoo, name: Yahoo Finance daily chart data, url: https://finance.yahoo.com}
+  - {dataset_id: stooq_daily, provider: stooq, name: Stooq daily history, url: https://stooq.com}
+
+series:
+  - series_id: US.CPI.ALL_ITEMS.SA
+    name: CPI-U, All Items, US City Average (seasonally adjusted)
+    category: inflation
+    frequency: M
+    unit: index
+    seasonal_adjustment: SA
+    sources:
+      - {provider: fred, source_series_id: CPIAUCSL, dataset: fred_series_observations, native_unit: index,
+         priority: 1, pit_support: vintage,
+         notes: "Official BLS data via FRED/ALFRED (vintages). Alternative: BLS Public Data API (v2 needs free key; no vintages). Index 1982-84=100."}
+
+  - series_id: US.UNEMPLOYMENT.RATE.SA
+    name: Civilian Unemployment Rate (seasonally adjusted)
+    category: labour
+    frequency: M
+    unit: pct
+    seasonal_adjustment: SA
+    sources:
+      - {provider: fred, source_series_id: UNRATE, dataset: fred_series_observations, native_unit: pct,
+         priority: 1, pit_support: vintage,
+         notes: "BLS via ALFRED. Alternative: BLS API series LNS14000000 (no vintages)."}
+
+  - series_id: US.PAYROLLS.NONFARM.SA
+    name: All Employees, Total Nonfarm (seasonally adjusted)
+    category: labour
+    frequency: M
+    unit: persons
+    seasonal_adjustment: SA
+    sources:
+      - {provider: fred, source_series_id: PAYEMS, dataset: fred_series_observations, native_unit: persons_k,
+         priority: 1, pit_support: vintage,
+         notes: "FRED reports thousands of persons; converted to persons in Silver. Large revisions: vintages matter."}
+
+  - series_id: US.GDP.REAL.SAAR
+    name: Real Gross Domestic Product (chained dollars, SAAR)
+    category: growth
+    frequency: Q
+    unit: usd_bn
+    seasonal_adjustment: SAAR
+    sources:
+      - {provider: fred, source_series_id: GDPC1, dataset: fred_series_observations, native_unit: usd_bn,
+         priority: 1, pit_support: vintage,
+         notes: "BEA via ALFRED. Chained-dollar base year changes across vintages (currently 2017 dollars). Alternative: BEA API (free key; no vintages)."}
+
+  - series_id: US.FED_FUNDS.EFFECTIVE.M
+    name: Effective Federal Funds Rate (monthly average)
+    category: rates
+    frequency: M
+    unit: pct
+    sources:
+      - {provider: fred, source_series_id: FEDFUNDS, dataset: fred_series_observations, native_unit: pct,
+         priority: 1, pit_support: vintage, notes: "Board of Governors H.15 via FRED."}
+
+  - series_id: US.TREASURY.CMT.10Y
+    name: 10-Year Treasury Constant Maturity Rate (daily)
+    category: rates
+    frequency: D
+    unit: pct
+    sources:
+      - {provider: fred, source_series_id: DGS10, dataset: fred_series_observations, native_unit: pct,
+         priority: 1, pit_support: vintage,
+         notes: "H.15 via FRED. Treasury's own Daily Par Yield Curve CSV/XML is the primary source but is not on FiscalData; adapter is future work."}
+
+  - series_id: US.TREASURY.AVG_RATE.NOTES
+    name: Average Interest Rate on Marketable Treasury Notes
+    description: Weighted average coupon of outstanding notes. NOT a market yield; do not substitute for CMT yields.
+    category: rates
+    frequency: M
+    unit: pct
+    sources:
+      - provider: treasury
+        source_series_id: avg_interest_rates.Marketable.Treasury Notes
+        dataset: tsy_avg_interest_rates
+        native_unit: pct
+        priority: 1
+        pit_support: ingestion_only
+        params:
+          endpoint: v2/accounting/od/avg_interest_rates
+          date_field: record_date
+          value_field: avg_interest_rate_amt
+          filters: {security_type_desc: Marketable, security_desc: Treasury Notes}
+        notes: "Official Treasury/FiscalData; no vintages."
+
+  - series_id: EA.HICP.ALL_ITEMS.YOY
+    name: Euro Area HICP, All Items, annual rate of change
+    category: inflation
+    frequency: M
+    unit: pct
+    sources:
+      - {provider: ecb, source_series_id: "ICP/M.U2.N.000000.4.ANR", dataset: ecb_sdmx, native_unit: pct,
+         priority: 1, pit_support: ingestion_only,
+         notes: "Eurostat data distributed by ECB. Flash estimates may be revised; revisions captured as new Bronze rows from first ingestion only."}
+
+  - series_id: EA.ECB.MRO_RATE
+    name: ECB Main Refinancing Operations Rate (fixed rate)
+    category: rates
+    frequency: D
+    unit: pct
+    event_driven: true          # ECB publishes only on change dates: no completeness/gap statistics
+    outlier_method: none        # policy rate moves in discrete steps; spike detection is not meaningful
+    sources:
+      - {provider: ecb, source_series_id: "FM/B.U2.EUR.4F.KR.MRR_FR.LEV", dataset: ecb_sdmx, native_unit: pct,
+         priority: 1, pit_support: ingestion_only, notes: "Provider returns rate-change dates only (step series). Stored as D; never forward-filled by macrodb."}
+
+  - series_id: FX.EURUSD.ECB_REF
+    name: ECB euro reference rate, USD per EUR (2.15pm CET fixing)
+    category: fx
+    frequency: D
+    unit: usd_per_eur
+    outlier_method: logret
+    outlier_threshold: 10
+    sources:
+      - {provider: ecb, source_series_id: "EXR/D.USD.EUR.SP00.A", dataset: ecb_sdmx, native_unit: usd_per_eur,
+         priority: 1, pit_support: ingestion_only,
+         notes: "Official ECB fixing. NOT identical to the Fed H.10 noon rate (FRED DEXUSEU); different fixing time."}
+
+  - series_id: US.TREASURY.CMT.2Y
+    name: 2-Year Treasury Constant Maturity Rate (daily)
+    category: rates
+    frequency: D
+    unit: pct
+    sources:
+      - {provider: fred, source_series_id: DGS2, dataset: fred_series_observations, native_unit: pct,
+         priority: 1, pit_support: vintage, notes: "H.15 market yield via FRED. Daily market data: no publication timestamp; if FRED cannot serve vintages (too many vintage dates) rows are stored without availability info and PIT relies on an explicit market-availability convention."}
+
+  - series_id: US.TREASURY.CMT.5Y
+    name: 5-Year Treasury Constant Maturity Rate (daily)
+    category: rates
+    frequency: D
+    unit: pct
+    sources:
+      - {provider: fred, source_series_id: DGS5, dataset: fred_series_observations, native_unit: pct,
+         priority: 1, pit_support: vintage, notes: "H.15 market yield via FRED. Daily market data: no publication timestamp; if FRED cannot serve vintages (too many vintage dates) rows are stored without availability info and PIT relies on an explicit market-availability convention."}
+
+  - series_id: US.TIPS.REAL.CMT.5Y
+    name: 5-Year TIPS Real Yield, constant maturity (daily)
+    category: rates
+    frequency: D
+    unit: pct
+    sources:
+      - {provider: fred, source_series_id: DFII5, dataset: fred_series_observations, native_unit: pct,
+         priority: 1, pit_support: vintage, notes: "H.15 market yield via FRED. Daily market data: no publication timestamp; if FRED cannot serve vintages (too many vintage dates) rows are stored without availability info and PIT relies on an explicit market-availability convention."}
+
+  - series_id: US.TIPS.REAL.CMT.10Y
+    name: 10-Year TIPS Real Yield, constant maturity (daily)
+    category: rates
+    frequency: D
+    unit: pct
+    sources:
+      - {provider: fred, source_series_id: DFII10, dataset: fred_series_observations, native_unit: pct,
+         priority: 1, pit_support: vintage, notes: "H.15 market yield via FRED. Daily market data: no publication timestamp; if FRED cannot serve vintages (too many vintage dates) rows are stored without availability info and PIT relies on an explicit market-availability convention."}
+
+  - series_id: US.BREAKEVEN.5Y
+    name: 5-Year Breakeven Inflation Rate (daily)
+    category: inflation_expectations
+    frequency: D
+    unit: pct
+    sources:
+      - {provider: fred, source_series_id: T5YIE, dataset: fred_series_observations, native_unit: pct,
+         priority: 1, pit_support: vintage, notes: "Derived by FRED/Fed: nominal CMT minus TIPS CMT; includes liquidity/inflation-risk premia."}
+
+  - series_id: US.BREAKEVEN.10Y
+    name: 10-Year Breakeven Inflation Rate (daily)
+    category: inflation_expectations
+    frequency: D
+    unit: pct
+    sources:
+      - {provider: fred, source_series_id: T10YIE, dataset: fred_series_observations, native_unit: pct,
+         priority: 1, pit_support: vintage, notes: "Derived by FRED/Fed: nominal CMT minus TIPS CMT; includes liquidity/inflation-risk premia."}
+
+  - series_id: US.BREAKEVEN.5Y5Y_FWD
+    name: 5-Year, 5-Year Forward Inflation Expectation Rate (daily)
+    category: inflation_expectations
+    frequency: D
+    unit: pct
+    sources:
+      - {provider: fred, source_series_id: T5YIFR, dataset: fred_series_observations, native_unit: pct,
+         priority: 1, pit_support: vintage, notes: "Derived by FRED/Fed."}
+
+  - series_id: US.CPI.CORE.SA
+    name: CPI-U Less Food and Energy (seasonally adjusted)
+    category: inflation
+    frequency: M
+    unit: index
+    seasonal_adjustment: SA
+    sources:
+      - {provider: fred, source_series_id: CPILFESL, dataset: fred_series_observations, native_unit: index,
+         priority: 1, pit_support: vintage, notes: "BLS via ALFRED."}
+
+  - series_id: US.GDP.POTENTIAL.CBO
+    name: Real Potential GDP (CBO)
+    category: growth
+    frequency: Q
+    unit: usd_bn
+    outlier_method: none
+    sources:
+      - {provider: fred, source_series_id: GDPPOT, dataset: fred_series_observations, native_unit: usd_bn,
+         priority: 1, pit_support: vintage, notes: "CBO estimates; the series contains projections to 2036 (future quarters are projections, not observations) and is revised with each CBO release."}
+
+  - series_id: US.TBILL.3M.DISCOUNT
+    name: 3-Month Treasury Bill Secondary Market Rate, Discount Basis (daily)
+    category: rates
+    frequency: D
+    unit: pct
+    sources:
+      - {provider: fred, source_series_id: DTB3, dataset: fred_series_observations, native_unit: pct,
+         priority: 1, pit_support: vintage, notes: "Discount basis; converted to an investment yield in research code."}
+
+  - series_id: US.TSY10Y.TR_INDEX.NASDAQ
+    name: Nasdaq Compoundr US Treasury 10-Year Note Total Return Index
+    category: total_return_index
+    frequency: D
+    unit: index
+    outlier_method: logret
+    sources:
+      - {provider: fred, source_series_id: NASDAQNCPXT, dataset: fred_series_observations, native_unit: index,
+         priority: 1, pit_support: vintage, notes: "Only public Treasury TR index found on FRED; history starts 2025-07-16 (too short for regression use); 10-year-note index, not a broad Treasury index."}
+
+instruments:
+  - instrument_id: SPY
+    name: SPDR S&P 500 ETF Trust
+    asset_class: etf
+    currency: USD
+    exchange: NYSE Arca
+    price_unit: usd
+    fields: [open, high, low, close, adj_close, volume]
+    sources:
+      - {provider: yahoo, source_series_id: SPY, dataset: yahoo_chart, priority: 1, pit_support: ingestion_only,
+         notes: "Optional adapter (unofficial, personal-use terms)."}
+      - {provider: stooq, source_series_id: spy.us, dataset: stooq_daily, priority: 2, pit_support: ingestion_only,
+         fields: [open, high, low, close, volume], notes: "Alternative; currently blocked by anti-bot challenge. No adjusted close."}
+  - instrument_id: SPX
+    name: S&P 500 Index
+    asset_class: equity_index
+    currency: USD
+    exchange: INDEX
+    price_unit: index_points
+    fields: [open, high, low, close, volume]
+    sources:
+      - {provider: yahoo, source_series_id: "^GSPC", dataset: yahoo_chart, priority: 1, pit_support: ingestion_only,
+         notes: "Index volume is unreliable at source."}
+      - {provider: stooq, source_series_id: "^spx", dataset: stooq_daily, priority: 2, pit_support: ingestion_only,
+         fields: [open, high, low, close, volume]}
+  - instrument_id: IEF
+    name: iShares 7-10 Year Treasury Bond ETF
+    asset_class: etf_treasury
+    currency: USD
+    exchange: NASDAQ
+    price_unit: usd
+    fields: [close, adj_close]
+    sources:
+      - {provider: yahoo, source_series_id: IEF, dataset: yahoo_chart, priority: 1, pit_support: ingestion_only,
+         notes: "Treasury ETF PROXY (7-10y), not a Treasury index. Total return via Yahoo adj_close (dividend adjusted); personal-use terms."}
+  - instrument_id: TLT
+    name: iShares 20+ Year Treasury Bond ETF
+    asset_class: etf_treasury
+    currency: USD
+    exchange: NASDAQ
+    price_unit: usd
+    fields: [close, adj_close]
+    sources:
+      - {provider: yahoo, source_series_id: TLT, dataset: yahoo_chart, priority: 1, pit_support: ingestion_only,
+         notes: "Treasury ETF PROXY (20y+), not a Treasury index."}
+  - instrument_id: GOVT
+    name: iShares U.S. Treasury Bond ETF
+    asset_class: etf_treasury
+    currency: USD
+    exchange: NYSE Arca
+    price_unit: usd
+    fields: [close, adj_close]
+    sources:
+      - {provider: yahoo, source_series_id: GOVT, dataset: yahoo_chart, priority: 1, pit_support: ingestion_only,
+         notes: "Broad Treasury ETF PROXY (all maturities); inception 2012."}

@@ -1,0 +1,30 @@
+frequencies:
+  - {frequency_id: D, name: Daily, periods_per_year: 252}
+  - {frequency_id: W, name: Weekly, periods_per_year: 52}
+  - {frequency_id: M, name: Monthly, periods_per_year: 12}
+  - {frequency_id: Q, name: Quarterly, periods_per_year: 4}
+  - {frequency_id: A, name: Annual, periods_per_year: 1}
+
+# value_in_dimension_base = value * to_base_factor. Conversions only allowed within a dimension.
+units:
+  - {unit_id: pct, name: Percent, dimension: percent, to_base_factor: 1.0}
+  - {unit_id: fraction, name: Fraction (0.01 = 1%), dimension: percent, to_base_factor: 100.0}
+  - {unit_id: bps, name: Basis points, dimension: percent, to_base_factor: 0.01}
+  - {unit_id: index, name: Index level, dimension: index, to_base_factor: 1.0}
+  - {unit_id: index_points, name: Index points, dimension: index_points, to_base_factor: 1.0}
+  - {unit_id: usd, name: US dollars, dimension: usd, to_base_factor: 1.0}
+  - {unit_id: usd_mn, name: US dollars (millions), dimension: usd, to_base_factor: 1000000.0}
+  - {unit_id: usd_bn, name: US dollars (billions), dimension: usd, to_base_factor: 1000000000.0}
+  - {unit_id: persons, name: Persons, dimension: persons, to_base_factor: 1.0}
+  - {unit_id: persons_k, name: Persons (thousands), dimension: persons, to_base_factor: 1000.0}
+  - {unit_id: count, name: Count / shares, dimension: count, to_base_factor: 1.0}
+  - {unit_id: usd_per_eur, name: US dollars per euro, dimension: fx_usd_per_eur, to_base_factor: 1.0}
+
+fields:
+  - {field_id: value, description: "Single-valued observation (macro series, rates, index level)"}
+  - {field_id: open, description: "Opening price", is_price_like: true}
+  - {field_id: high, description: "Period high", is_price_like: true}
+  - {field_id: low, description: "Period low", is_price_like: true}
+  - {field_id: close, description: "Closing price", is_price_like: true}
+  - {field_id: adj_close, description: "Split/dividend-adjusted close", is_price_like: true}
+  - {field_id: volume, description: "Traded volume"}

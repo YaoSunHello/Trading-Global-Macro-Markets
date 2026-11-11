@@ -1,0 +1,7 @@
+{
+  "run_at": "2026-11-10T16:57:43.455332+00:00",
+  "spec_sha256": "e85e14573bf075bd6c0d9f6f524201de6d92e5c0938916a861f65eeff839924c",
+  "last_decision": "2026-10-30",
+  "last_cpi_observation": "2026-09-01",
+  "prospective_note": "decisions after this run's last_decision are genuinely out-of-sample for definitions frozen at spec_sha256"
+}

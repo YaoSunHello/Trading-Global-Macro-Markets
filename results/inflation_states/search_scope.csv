@@ -1,0 +1,8 @@
+item,count,note
+detection metrics tables,7,rules x 3 persistence x 2 measures; no p-values; CIs only
+"economic contrasts, primary family (Holm)",4,"headline, L1/M1, SYN8Y, 3m"
+"economic contrasts, secondary family (BH)",128,"all other measure x rule x target x horizon combinations, full sample"
+"economic contrasts, robustness re-runs of primary (not corrected, descriptive)",76,"windows, leave-one-episode-out, starts, persistence, targets/horizons"
+conditional-outcome table rows (descriptive),2946,no tests
+level rules / momentum rules / persistence variants,3 / 4 / 3,declared before outcomes; none selected on outcomes
+threshold sensitivity grid,3x3 level thresholds; 4 band multiples x 4 rules x 3 persistence; 6 calibrations,reporting only

@@ -1,0 +1,3 @@
+measure,rule_id,monthly_transitions_per_year,quarterly_transitions_per_year,monthly_spells,monthly_spells_never_observed_at_quarter_end
+HEADLINE,L1_FIXED,1.2515337423312882,0.7926267281105991,69,14
+CORE,L1_FIXED,0.5348189415041783,0.36666666666666664,17,4

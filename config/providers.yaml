@@ -1,0 +1,68 @@
+# Provider registry. Add a provider: write an adapter (subclass ProviderAdapter) and add an entry here.
+providers:
+  - provider_id: fred
+    name: FRED / ALFRED (Federal Reserve Bank of St. Louis)
+    adapter: macrodb.providers.fred.FredAdapter
+    base_url: https://api.stlouisfed.org/fred
+    auth_type: api_key
+    auth_env_var: FRED_API_KEY          # free key: https://fred.stlouisfed.org/docs/api/api_key.html
+    rate_limit_per_min: 120
+    has_vintages: true
+    enabled: true
+    licence_note: >
+      Free API under the FRED API Terms of Use. Individual series may carry third-party copyright
+      (e.g. S&P, ICE, Moody's) with extra restrictions; check each series' notes before redistribution.
+    limitations: >
+      Requires a free API key. Vintages only exist from ALFRED's archive start (varies by series, often
+      the 1990s); earlier observations carry the archive-start realtime_start, not the true first release.
+
+  - provider_id: ecb
+    name: ECB Data Portal (SDMX 2.1 REST)
+    adapter: macrodb.providers.ecb.EcbAdapter
+    base_url: https://data-api.ecb.europa.eu/service/data
+    auth_type: none
+    rate_limit_per_min: 60
+    has_vintages: false
+    enabled: true
+    licence_note: ECB statistics may be reused with source acknowledgement (ECB Data Portal terms).
+    limitations: No vintages or publication timestamps in the API; point-in-time uses ingestion time only.
+
+  - provider_id: treasury
+    name: U.S. Treasury FiscalData
+    adapter: macrodb.providers.treasury.TreasuryFiscalDataAdapter
+    base_url: https://api.fiscaldata.treasury.gov/services/api/fiscal_service
+    auth_type: none
+    rate_limit_per_min: 60
+    has_vintages: false
+    enabled: true
+    licence_note: U.S. government work; public domain (FiscalData terms apply).
+    limitations: >
+      No vintage history. This adapter covers FiscalData datasets only; Daily Treasury Par Yield Curve rates
+      are published on home.treasury.gov (XML/CSV) and are obtained through FRED (DGS*) for now.
+
+  - provider_id: yahoo
+    name: Yahoo Finance (chart endpoint, as used by yfinance)
+    adapter: macrodb.providers.yahoo.YahooAdapter
+    base_url: https://query1.finance.yahoo.com/v8/finance/chart
+    auth_type: none
+    rate_limit_per_min: 30
+    has_vintages: false
+    enabled: false                       # opt-in: unofficial endpoint, personal-use terms
+    licence_note: Yahoo data is for personal use only; unofficial API; not for redistribution.
+    limitations: >
+      Unofficial and may change or block without notice. adj_close restated retroactively. No
+      publication timestamps or vintages.
+
+  - provider_id: stooq
+    name: Stooq
+    adapter: macrodb.providers.stooq.StooqAdapter
+    base_url: https://stooq.com/q/d/l/
+    auth_type: api_key
+    auth_env_var: STOOQ_API_KEY
+    rate_limit_per_min: 20
+    has_vintages: false
+    enabled: false                       # currently JS-challenge protected; see docs/PROVIDERS.md
+    licence_note: Stooq terms apply; personal/research use.
+    limitations: >
+      As of 2026-11 the CSV endpoint is behind a JavaScript proof-of-work challenge, so unattended
+      downloads return HTML. The adapter fails loudly rather than storing it.

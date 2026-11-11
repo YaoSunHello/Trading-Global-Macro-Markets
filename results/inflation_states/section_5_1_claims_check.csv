@@ -1,0 +1,6 @@
+claim_id,metric,episodes,count,share,ci_lo,ci_hi,baseline_share_tightening_decisions,mean_share_inside_high,mean_max_yoy_inside
+B1,"share of >5% cash-relative drawdowns (SYN8Y, peaks since 1972-07) whose peak decision is in a tightening state",16,1.0,0.0625,0.0015811117227658871,0.3023207384345319,0.2714723926380368,,
+B1,share of those drawdowns with >= 50% of the peak-to-trough decisions in tightening,16,3.0,0.1875,0.040473733905945886,0.4564565462316117,0.2714723926380368,,
+B1,mean share of peak-to-trough decisions in tightening (compare with baseline share),16,,0.20890719042233336,,,0.2714723926380368,,
+B2,deep (<=-10%) drawdowns: share with headline L1 level 'high' at peak,9,3.0,0.3333333333333333,,,,0.3265648166963956,5.909736782977912
+B2,"shallow (-10%,-5%] drawdowns: share with headline L1 level 'high' at peak",7,1.0,0.14285714285714285,,,,0.14285714285714285,2.5705860304547152
