@@ -66,3 +66,16 @@ providers:
     limitations: >
       As of 2026-11 the CSV endpoint is behind a JavaScript proof-of-work challenge, so unattended
       downloads return HTML. The adapter fails loudly rather than storing it.
+
+  - provider_id: fomc
+    name: Federal Reserve FOMC policy documents
+    adapter: macrodb.policy.FomcAdapter
+    base_url: https://www.federalreserve.gov
+    auth_type: none
+    rate_limit_per_min: 60
+    has_vintages: false
+    enabled: true
+    licence_note: Official Federal Reserve policy calendars, statements and minutes; retain attribution.
+    limitations: >
+      Document/event ingestion, not scalar series. Historical missing announcement clocks remain flagged.
+      Policy events require centrally ingested FRED target levels; recent documents revalidate at most daily.

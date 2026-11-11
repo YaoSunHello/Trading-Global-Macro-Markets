@@ -31,6 +31,8 @@ def row_hash(provider_id, source_series_id, o) -> str:
     a new vintage hashes differently and is appended (revisions are never overwritten)."""
     parts = [provider_id, source_series_id, o.field_id, o.obs_date_raw or "", o.value_raw if o.value_raw is not None else "\x00",
              o.realtime_start.isoformat() if o.realtime_start else "", o.published_at.isoformat() if o.published_at else ""]
+    if (o.source_attrs or {}).get("is_estimate"):
+        parts.append("USER_APPROVED_ESTIMATE")
     return hashlib.sha1("\x1f".join(parts).encode()).hexdigest()
 
 
@@ -76,7 +78,7 @@ class Ingester:
             SELECT max(b.started_at)::DATE
             FROM prov_ingestion_task t JOIN prov_batch b USING (batch_id)
             WHERE t.provider_id=? AND t.source_series_id=? AND t.status IN ('ok', 'empty')
-                  AND b.finished_at IS NOT NULL
+                  AND b.finished_at IS NOT NULL AND b.mode <> 'manual_estimate'
         """, [req.provider_id, req.source_series_id]).fetchone()[0]
         since = today - timedelta(days=adapter.overlap_days)
         if last_refresh or latest:
@@ -95,11 +97,34 @@ class Ingester:
         self.con.execute("INSERT INTO prov_batch VALUES (?,?,NULL,?,?,?,?)",
                          [batch_id, self._now(), mode, "running", __version__, note])
         summary = {"batch_id": batch_id, "tasks": 0, "ok": 0, "errors": 0, "rows_new": 0}
-        for req in self._tasks(series_ids, providers, include_disabled):
+        policy = not series_ids and "fomc" in self.registry.config and (
+            ("fomc" in providers) if providers else (include_disabled or self.registry.config["fomc"].get("enabled", True)))
+        tasks = self._tasks(series_ids, providers, include_disabled)
+        if policy:
+            from .policy import TARGETS
+            existing = {(r.provider_id, r.source_series_id) for r in tasks}
+            tasks.extend(r for r in self._tasks(TARGETS, ["fred"], False)
+                         if (r.provider_id, r.source_series_id) not in existing)
+        for req in tasks:
             summary["tasks"] += 1
             r = self._run_task(batch_id, req, mode)
             summary["ok" if r["status"] != "error" else "errors"] += 1
             summary["rows_new"] += r["rows_new"]
+        if policy:
+            from .policy import PolicyIngester
+            summary["tasks"] += 1
+            try:
+                result = PolicyIngester(self.con, self.settings, self.registry).run(
+                    batch_id, as_of=str(self._now().date()), full=mode == "full")
+                summary["ok"] += 1
+                summary["policy_events_new"] = result["events_new"]
+                self.con.execute("INSERT INTO prov_ingestion_task VALUES (?,?,?,'ok',?,?,NULL,'[]')",
+                                 [batch_id, "fomc", "FOMC.events", result["events"], result["events_new"]])
+            except Exception as e:
+                log.error("policy ingest failed: %s", e)
+                summary["errors"] += 1
+                self.con.execute("INSERT INTO prov_ingestion_task VALUES (?,?,?,'error',0,0,?,'[]')",
+                                 [batch_id, "fomc", "FOMC.events", f"{type(e).__name__}: {e}"])
         status = "ok" if summary["errors"] == 0 else ("failed" if summary["ok"] == 0 else "partial")
         self.con.execute("UPDATE prov_batch SET finished_at=?, status=? WHERE batch_id=?", [self._now(), status, batch_id])
         if summary["rows_new"]:

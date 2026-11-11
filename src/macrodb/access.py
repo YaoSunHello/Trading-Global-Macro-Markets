@@ -27,7 +27,7 @@ def _as_list(x) -> list | None:
 
 class MacroDB:
     """Standardised read interface. Canonical output is LONG format; use `to_wide` for analysis.
-    Nothing is forward-filled or interpolated."""
+    No automatic interpolation; approved estimates in original series remain explicitly flagged."""
 
     def __init__(self, settings: Settings | None = None, con=None, read_only: bool = False):
         self.settings = settings or Settings()
@@ -35,6 +35,70 @@ class MacroDB:
 
     def close(self):
         self.con.close()
+
+    def policy_events(self, start=None, end=None) -> pd.DataFrame:
+        """Latest reconstructed policy-event versions; source clock/assumption flags remain explicit."""
+        where, args = [], []
+        if start:
+            where.append("announcement_date >= ?"); args.append(pd.Timestamp(start).date())
+        if end:
+            where.append("announcement_date <= ?"); args.append(pd.Timestamp(end).date())
+        flt = "WHERE " + " AND ".join(where) if where else ""
+        rows = self.con.execute(f"""
+            SELECT payload FROM bronze_policy_event {flt}
+            QUALIFY row_number() OVER (PARTITION BY event_key ORDER BY policy_version_id DESC) = 1
+            ORDER BY announcement_date, known_at
+        """, args).fetchall()
+        import json
+        return pd.DataFrame([json.loads(r[0]) for r in rows])
+
+    def policy_target_levels(self, end=None) -> pd.DataFrame:
+        from .policy import target_levels
+        return target_levels(self.con, end)
+
+    def policy_sources(self) -> pd.DataFrame:
+        return self.con.execute("""
+            SELECT r.response_id, r.provider_id, r.request_url AS url, r.request_params AS params,
+                   r.archive_path, r.content_sha256 AS sha256, r.fetched_at
+            FROM prov_raw_response r
+            WHERE r.provider_id='fomc' OR EXISTS (
+                SELECT 1 FROM bronze_observation b WHERE b.response_id=r.response_id
+                AND b.source_series_id IN ('DFEDTAR','DFEDTARL','DFEDTARU'))
+            ORDER BY r.response_id
+        """).fetchdf()
+
+    def raw_response(self, response_id: int) -> bytes:
+        from .archive import RawArchive
+        row = self.con.execute("SELECT archive_path FROM prov_raw_response WHERE response_id=?", [response_id]).fetchone()
+        if row is None:
+            raise KeyError(f"unknown response: {response_id}")
+        return RawArchive(self.settings.raw_dir).get(row[0])
+
+    def estimates(self, series, start=None, end=None, as_of=None, provider=None, all_versions=False) -> pd.DataFrame:
+        """Approved estimates with input lineage; availability is their actual creation time, in UTC."""
+        ids = _as_list(series)
+        where, args = [f"s.series_id IN ({','.join('?' * len(ids))})", "list_contains(s.dq_flags,'ESTIMATED')"], list(ids)
+        for column, operator, bound in [("s.observation_date", ">=", start), ("s.observation_date", "<=", end)]:
+            if bound is not None:
+                where.append(f"{column} {operator} ?"); args.append(pd.Timestamp(bound).date())
+        if as_of is not None:
+            date_only = (isinstance(as_of, date) and not isinstance(as_of, datetime)) or (
+                isinstance(as_of, str) and len(as_of) <= 10)
+            when = pd.Timestamp(as_of)
+            where.append("s.availability_ts < ?" if date_only else "s.availability_ts <= ?")
+            args.append((when + timedelta(days=1) if date_only else when).to_pydatetime())
+        if (providers := _as_list(provider)):
+            where.append(f"s.provider_id IN ({','.join('?' * len(providers))})"); args += providers
+        rank = "" if all_versions else (
+            "QUALIFY row_number() OVER (PARTITION BY s.series_id,s.observation_date ORDER BY s.bronze_id DESC)=1")
+        return self.con.execute(f"""
+            SELECT {', '.join('s.' + column for column in COLUMNS)}, s.bronze_id AS estimate_id,
+                   json_extract_string(b.source_attrs,'$.method') AS method
+            FROM silver_observation s JOIN bronze_observation b USING(bronze_id)
+            WHERE {' AND '.join(where)}
+            {rank}
+            ORDER BY s.series_id,s.observation_date,s.availability_ts,s.bronze_id
+        """, args).fetchdf()
 
     # ------------------------------------------------------------------ metadata
     def list_series(self, category: str | None = None, provider: str | None = None) -> pd.DataFrame:
@@ -80,7 +144,8 @@ class MacroDB:
     # ------------------------------------------------------------------ data
     def get(self, series: str | Sequence[str], start=None, end=None, provider: str | Sequence[str] | None = None,
             field: str | Sequence[str] | None = None, as_of=None, vintage: str = "latest",
-            quality: str | Iterable[str] = "usable", pit: str = "flag", wide: bool = False) -> pd.DataFrame:
+            quality: str | Iterable[str] = "usable", pit: str = "flag", wide: bool = False,
+            include_estimates: bool = True) -> pd.DataFrame:
         """Fetch Silver observations (long format).
 
         start/end   filter on observation_date (inclusive).
@@ -93,6 +158,8 @@ class MacroDB:
         pit         'flag' (default; rows carry pit_reliable and a warning is raised for as-of queries
                     touching unreliable availability) | 'strict' (drop rows without reliable availability).
         wide        return a wide table (observation_date x series) instead of long format.
+        include_estimates fill missing latest values with labeled, approved estimates by default; all-version
+                    queries include them for estimate-aware snapshots. First-release and strict PIT exclude them.
         """
         ids = _as_list(series)
         known = {r[0] for r in self.con.execute("SELECT series_id FROM ref_series").fetchall()}
@@ -126,6 +193,7 @@ class MacroDB:
         if pit == "strict":
             where.append("pit_reliable")
         where.append("observation_date IS NOT NULL")
+        where.append("NOT list_contains(dq_flags,'ESTIMATED')")
 
         order = {"latest": "DESC", "first": "ASC"}.get(vintage)
         rank = (f"QUALIFY row_number() OVER (PARTITION BY series_id, provider_id, field_id, observation_date "
@@ -145,6 +213,14 @@ class MacroDB:
                   SELECT {', '.join(COLUMNS)} FROM pick {rank}
                   ORDER BY series_id, field_id, observation_date, availability_ts, bronze_id"""
         df = self.con.execute(sql, args).fetchdf()
+        if include_estimates and vintage != "first" and pit != "strict":
+            from .estimates import fill_missing
+            estimated = self.estimates(ids, start, end, as_of, provider, all_versions=vintage == "all")
+            if (fields := _as_list(field)):
+                estimated = estimated[estimated.field_id.isin(fields)]
+            if not estimated.empty:
+                df = pd.concat([df, estimated], ignore_index=True) if vintage == "all" else fill_missing(df, estimated)
+                df = df.sort_values(["series_id", "field_id", "observation_date", "availability_ts", "bronze_id"])
         df = df[df["dq_status"].isin(statuses)].reset_index(drop=True)
         if as_of is not None and len(df) and not df["pit_reliable"].all():
             bad = sorted(df.loc[~df["pit_reliable"], "series_id"].unique())

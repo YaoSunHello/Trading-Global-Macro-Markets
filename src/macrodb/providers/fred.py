@@ -22,7 +22,21 @@ class FredAdapter(ProviderAdapter):
     incremental = "overlap"
 
     def fetch(self, req: SeriesRequest, since: date | None = None, until: date | None = None) -> FetchResult:
+        if req.params.get("history_start"):
+            start = date.fromisoformat(req.params["history_start"])
+            since = max(since, start) if since else start
+        if req.params.get("history_end"):
+            end = date.fromisoformat(req.params["history_end"])
+            until = min(until, end) if until else end
+        if since and until and since > until:
+            return FetchResult(warnings=["No observations in window: series history has ended"])
         key = self.require_credential()
+        if req.params.get("current_only"):
+            res = self._fetch(req, key, vintages=False, since=since, until=until)
+            for page in res.pages:
+                for o in page.observations:
+                    o.realtime_start = o.realtime_end = None
+            return res
         try:
             return self._fetch(req, key, vintages=True, since=since, until=until)
         except ProviderError as e:

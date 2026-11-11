@@ -1,0 +1,25 @@
+{
+  "run_at": "2026-11-11T15:49:57.914327+00:00",
+  "spec_sha256": "44b851055155cae9b741adc23e415ed9ffecb64b1b947b4c3e6a845ba2a9500f",
+  "first_session": "1994-02-01",
+  "last_session": "2026-11-09",
+  "candidate_pauses": 21,
+  "complete_cycles": 6,
+  "signal_activations": 0,
+  "reserved_note": "reserved whole cycles, not pristine out-of-sample: prior exposure to their outcomes",
+  "communication": "archive official statements, clock and document lineage for inspection; no reliable validated historical text classifier, no text in signal",
+  "input_hashes": {
+    "headline": "0c7d9836bce2be686f5581abc35e04f100937c78ae92f06437342302dd3eb127",
+    "core": "dff01fa808421ff7cdf68ce4fd4eab96d3251714d6dbaba2913bfab30c919993",
+    "wages": "e0d53f350eaa4faf051fd9a2201453e326549104511641f4232812db4f9eabc7",
+    "productivity": "1cf6d2c2fc1e959d8890c58c7be37a26143a0f80066476c48de75fc9670e4566",
+    "expectations": "4a02de7bc9f2b8d5f3126620e7d0959bbb32604a51b5ccd588fae6582ea29796",
+    "y2": "228565a0b22cb30ec30369c358fa937bfa4c28ff491879777932509b15dc69f2",
+    "y5": "900fd420e00ceeee0a70f556581e04bd3327d9215f6e92bc201eec06c7be8e46",
+    "y10": "55ca918e99f644e651dfab3b0cb50e699981ce9fcf13a2a18a6521613bc48495",
+    "bills": "b56777268223ded01a930158df9dae2030bea488db7f22e2161a2aa817dbb661",
+    "policy_events": "eac74b5e09b888d900b47c0bdbf0685145182ad95a18a7bba238e63309b856b3",
+    "source_manifest": "d9d03c70b9413b20637720a82895ff4148affb3ec2dfb3fd1f97029e3dde61cd",
+    "as_of": "2026-11-09T21:00:00+00:00"
+  }
+}

@@ -51,3 +51,32 @@ PYTHONPATH=src:. python3 -m research.inflation_states.report   # results/inflati
 Outputs are in `results/inflation_states/` (state history with availability provenance, detection-quality and robustness
 tables, conditional Treasury outcomes, drawdown episodes, figures, `FINDINGS.md`). Definitions are frozen and hashed
 (`spec_frozen.json`) before outcomes are computed; the outcome stage refuses to run if they change.
+
+## Policy-cycle study (section 5.2)
+
+`research/policy_cycles/` reconstructs official scheduled decisions and intermeeting target changes from
+February 1994, classifies four real-time policy states, and evaluates model-estimated 2Y/8Y forward excess
+returns plus one fixed long-only 8Y-duration-versus-bills rule. Sources, timing assumptions, costs, cycle
+inference limits, the reserved split and the single inflation comparison are documented in
+[docs/POLICY_CYCLES.md](docs/POLICY_CYCLES.md). Findings: `results/policy_cycles/FINDINGS.md`.
+
+```bash
+PYTHONPATH=src python3 -m macrodb.cli ingest --provider fred fomc
+PYTHONPATH=src python3 -m macrodb.cli build-silver
+PYTHONPATH=src:. python3 -m research.policy_cycles
+```
+
+Policy target series and source-backed FOMC events are ingested centrally by `macrodb` before research.
+The study reads DuckDB only; result CSVs are audit exports, not standalone input datasets.
+
+## Hiking-cycle completion study (section 5.3)
+
+`research/hiking_cycles/` compares buying duration at the first scheduled hold with one frozen,
+numerical-only completion filter using real-time CPI, ECI wages and long-term expected inflation.
+Missing required inputs block activation; communications classification is explicitly deferred.
+Methodology: [docs/HIKING_CYCLES.md](docs/HIKING_CYCLES.md).
+Findings and frozen inputs: `results/hiking_cycles/`.
+
+```bash
+PYTHONPATH=src:. python3 -m research.hiking_cycles
+```

@@ -1,0 +1,8 @@
+{
+  "comparison": "high-and-rising minus other known inflation within hold-after-hiking",
+  "target": "SYN8Y",
+  "horizon_months": 3,
+  "status": "insufficient evidence",
+  "difference": null,
+  "inference": "none; no additional comparisons or tuning"
+}

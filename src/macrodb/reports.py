@@ -82,6 +82,27 @@ def quality_report(con, series_ids=None) -> dict[str, pd.DataFrame]:
     return {"status": status, "flags": flags, "duplicates": dups, "ingestion_issues": ingest}
 
 
+def policy_report(con) -> pd.DataFrame:
+    return con.execute("""
+        WITH latest AS (
+            SELECT * FROM bronze_policy_event
+            QUALIFY row_number() OVER (PARTITION BY event_key ORDER BY policy_version_id DESC) = 1
+        )
+        SELECT count(*) AS events,
+               count(*) FILTER (WHERE scheduled) AS scheduled,
+               count(*) FILTER (WHERE NOT scheduled) AS intermeeting,
+               min(announcement_date) AS first_announcement,
+               max(announcement_date) AS last_announcement,
+               count(*) FILTER (WHERE timing_basis='statement_clock_time') AS verified_clocks,
+               count(*) FILTER (WHERE timing_basis<>'statement_clock_time') AS conservative_date_only,
+               (SELECT count(*) FROM prov_policy_event_source
+                WHERE policy_version_id IN (SELECT policy_version_id FROM latest)) AS document_links,
+               (SELECT count(*) FROM prov_policy_target_lineage
+                WHERE policy_version_id IN (SELECT policy_version_id FROM latest)) AS target_links
+        FROM latest
+    """).fetchdf()
+
+
 def _md(df: pd.DataFrame) -> str:
     if df.empty:
         return "_none_"
@@ -97,8 +118,28 @@ def write_reports(con, out_dir: Path, series_ids=None) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     cov = coverage_report(con, series_ids)
     qr = quality_report(con, series_ids)
+    policy = policy_report(con) if not series_ids else pd.DataFrame()
+    estimate_filter = f"AND s.series_id IN ({','.join('?' * len(series_ids))})" if series_ids else ""
+    estimates = con.execute(f"""
+        SELECT s.series_id,s.observation_date,s.value,
+               json_extract_string(b.source_attrs,'$.method') AS method,
+               s.availability_ts AS created_at,s.bronze_id AS estimate_id,
+               l.observation_date AS left_month,l.value_num AS left_value,
+               r.observation_date AS right_month,r.value_num AS right_value
+        FROM silver_observation s JOIN bronze_observation b USING(bronze_id)
+        JOIN bronze_observation l ON l.bronze_id=CAST(json_extract_string(b.source_attrs,'$.left_bronze_id') AS BIGINT)
+        JOIN bronze_observation r ON r.bronze_id=CAST(json_extract_string(b.source_attrs,'$.right_bronze_id') AS BIGINT)
+        WHERE list_contains(s.dq_flags,'ESTIMATED')
+        {estimate_filter}
+        QUALIFY row_number() OVER (PARTITION BY s.series_id,s.observation_date ORDER BY s.bronze_id DESC)=1
+        ORDER BY s.series_id,s.observation_date
+    """, list(series_ids or [])).fetchdf()
     paths = []
-    for name, df in {"coverage": cov, **{f"quality_{k}": v for k, v in qr.items()}}.items():
+    reports = {"coverage": cov, **{f"quality_{k}": v for k, v in qr.items()}}
+    if not policy.empty:
+        reports["policy_coverage"] = policy
+    reports["approved_estimates"] = estimates
+    for name, df in reports.items():
         p = out_dir / f"{name}.csv"
         df.to_csv(p, index=False)
         paths.append(p)
@@ -111,6 +152,16 @@ def write_reports(con, out_dir: Path, series_ids=None) -> list[Path]:
           "As-of queries on these use first-ingestion time only; they cannot reproduce what was known "
           "before ingestion began.", "", _md(pit), "",
           "## Ingestion issues", "", _md(qr["ingestion_issues"]), ""]
+    if not policy.empty:
+        md += ["## Source-backed policy events", "", _md(policy), "",
+               "Date-only timings are conservative reconstructions, not verified release clocks. "
+               "FRED target levels are current-only numeric validation, not historical publication vintages. "
+               "Calendar-day target series may exceed 100% in weekday-based scalar coverage; DFEDTAR is discontinued.", ""]
+    if not estimates.empty:
+        md += ["## Approved estimates (not official observations)", "", _md(estimates), "",
+               "Estimates are stored in the original series and used by default; original missing versions are retained. "
+               "availability is the actual estimate creation time, not a backdated source release. "
+               "Future official values supersede estimates.", ""]
     p = out_dir / "report.md"
     p.write_text("\n".join(md))
     return paths + [p]

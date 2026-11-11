@@ -1,0 +1,23 @@
+{
+  "run_at": "2026-11-11T12:40:02.614640+00:00",
+  "spec_sha256": "f0815094750500c7e2aa37009a49fe8da16c41c51f9d186f7d1fb57a23c5146d",
+  "first_session": "1994-02-01",
+  "last_session": "2026-11-09",
+  "events": 271,
+  "complete_cycles": 6,
+  "timing_counts": {
+    "date_only_next_day": 152,
+    "statement_clock_time": 89,
+    "scheduled_hold_reconstructed_next_day": 30
+  },
+  "reserved_note": "reserved whole cycles, not pristine out-of-sample: prior exposure to their outcomes",
+  "input_hashes": {
+    "y2": "228565a0b22cb30ec30369c358fa937bfa4c28ff491879777932509b15dc69f2",
+    "y5": "900fd420e00ceeee0a70f556581e04bd3327d9215f6e92bc201eec06c7be8e46",
+    "y10": "55ca918e99f644e651dfab3b0cb50e699981ce9fcf13a2a18a6521613bc48495",
+    "bills": "b56777268223ded01a930158df9dae2030bea488db7f22e2161a2aa817dbb661",
+    "policy_events": "bd9b69830546b3848038777237af668a7aca8a076d12cc9e63f5d006cdc89eaf",
+    "cpi_vintages": "dcaa9244b67ab239d8cef2c408fe90f7db666c18446b661a21ac02b6da97e7b8",
+    "target_validation": "72bdb9ae9ede791bb049e715d647f02dde34f20f34fa22d79d525a4d49695afd"
+  }
+}

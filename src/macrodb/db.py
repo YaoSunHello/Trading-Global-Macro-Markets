@@ -42,4 +42,11 @@ def export_parquet(con: duckdb.DuckDBPyConnection, settings: Settings) -> list[P
         p = ref / f"{t}.parquet"
         con.execute(f"COPY {t} TO '{p}' (FORMAT PARQUET)")
         out.append(p)
+    policy = base / "policy"
+    policy.mkdir(parents=True, exist_ok=True)
+    for table in ["bronze_policy_event", "prov_policy_event_source", "prov_policy_target_lineage",
+                  "prov_policy_exclusion"]:
+        p = policy / f"{table}.parquet"
+        con.execute(f"COPY {table} TO '{p}' (FORMAT PARQUET)")
+        out.append(p)
     return out

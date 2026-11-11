@@ -84,8 +84,8 @@ def test_stooq_csv_parse():
 
 
 def test_registry_loads_adapters_from_config(registry):
-    assert set(registry.ids()) == {"fred", "ecb", "treasury", "yahoo", "stooq"}
-    assert registry.ids(enabled_only=True) == ["fred", "ecb", "treasury"]
+    assert set(registry.ids()) == {"fred", "ecb", "treasury", "yahoo", "stooq", "fomc"}
+    assert registry.ids(enabled_only=True) == ["fred", "ecb", "treasury", "fomc"]
     assert isinstance(registry.get("ecb"), EcbAdapter)
     with pytest.raises(ProviderError):
         registry.get("nope")

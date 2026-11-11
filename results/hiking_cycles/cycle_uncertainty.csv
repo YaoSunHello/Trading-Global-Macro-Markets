@@ -1,0 +1,7 @@
+target,sample,complete_cycles,informative_complete_cycles,equal_cycle_mean_net_difference,cycle_ci_low,cycle_ci_high,status
+SYN2Y,all,6,1,-0.016707320914638002,,,insufficient evidence
+SYN2Y,design,4,0,,,,insufficient evidence
+SYN2Y,reserved,2,1,-0.016707320914638002,,,insufficient evidence
+SYN8Y,all,6,1,-0.028778459981433135,,,insufficient evidence
+SYN8Y,design,4,0,,,,insufficient evidence
+SYN8Y,reserved,2,1,-0.028778459981433135,,,insufficient evidence

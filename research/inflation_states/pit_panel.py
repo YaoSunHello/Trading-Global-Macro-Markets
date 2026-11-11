@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from macrodb.estimates import estimate_mask
 
 from ..data import asof_snapshot, iso, ts
 from . import spec as S
@@ -61,7 +62,8 @@ def _row_from_derived(d: pd.DataFrame, t: pd.Timestamp) -> dict:
 def coverage_audit(versions: pd.DataFrame, series_id: str) -> dict:
     """How much of the vintage archive is genuine real-time data. An observation whose FIRST appearance in the archive
     is more than 45 days after its month end entered the archive in a back-fill (archive start), not at its release."""
-    v = versions[versions["value"].notna() & versions["dq_status"].isin(["ok", "suspect"])]
+    official = versions[~estimate_mask(versions)]
+    v = official[official["value"].notna() & official["dq_status"].isin(["ok", "suspect"])]
     first = v.groupby("observation_date")["availability_ts"].min()
     lag = (first - (first.index + pd.offsets.MonthEnd(0))).dt.days
     bad = lag[lag > S.GENUINE_FIRST_RELEASE_MAX_LAG_DAYS]
@@ -98,6 +100,17 @@ def build_panel(versions: pd.DataFrame, decisions: pd.DatetimeIndex, series_id: 
                  first_release_ts=ts(first_release[t], S.CPI_RELEASE_HOUR),
                  info_lag_days=int((F - (t + pd.offsets.MonthEnd(0))).days), n_obs_in_vintage=int(len(s)),
                  availability_basis="source_verified_vintage")
+        estimated = snap[estimate_mask(snap)]
+        if not estimated.empty:
+            latest_is_estimate = "ESTIMATED" in snap.loc[t, "dq_flags"]
+            if latest_is_estimate:
+                r["release_ts"] = pd.Timestamp(av).tz_localize("UTC").tz_convert("America/New_York")
+                r["first_release_ts"] = r["release_ts"]
+            r.update(availability_basis="source_verified_vintage_with_estimated_history",
+                     n_estimated_inputs=len(estimated),
+                     estimated_observation_months="|".join(str(d.date()) for d in estimated.index),
+                     input_availability_ts=max(r["release_ts"], pd.Timestamp(
+                         estimated.availability_ts.max()).tz_localize("UTC").tz_convert("America/New_York")))
         rows.append(r)
         if keep_derived:
             snaps[F] = d

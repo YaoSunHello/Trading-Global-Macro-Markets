@@ -8,6 +8,8 @@ datasets:
      url: https://fiscaldata.treasury.gov/datasets/average-interest-rates-treasury-securities/}
   - {dataset_id: yahoo_chart, provider: yahoo, name: Yahoo Finance daily chart data, url: https://finance.yahoo.com}
   - {dataset_id: stooq_daily, provider: stooq, name: Stooq daily history, url: https://stooq.com}
+  - {dataset_id: fomc_policy_documents, provider: fomc, name: FOMC calendars and policy announcements,
+     url: https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm}
 
 series:
   - series_id: US.CPI.ALL_ITEMS.SA
@@ -227,6 +229,87 @@ series:
     sources:
       - {provider: fred, source_series_id: NASDAQNCPXT, dataset: fred_series_observations, native_unit: index,
          priority: 1, pit_support: vintage, notes: "Only public Treasury TR index found on FRED; history starts 2025-07-16 (too short for regression use); 10-year-note index, not a broad Treasury index."}
+
+  - series_id: US.FED_FUNDS.TARGET.SINGLE
+    name: Federal funds single target (historical, discontinued December 2008)
+    category: policy
+    frequency: D
+    unit: pct
+    outlier_method: none
+    sources:
+      - provider: fred
+        source_series_id: DFEDTAR
+        dataset: fred_series_observations
+        native_unit: pct
+        priority: 1
+        pit_support: ingestion_only
+        params: {current_only: true, history_start: "1994-02-01", history_end: "2008-12-15"}
+        notes: "Official target levels, not announcement timestamps. Historical effective dates validate separately sourced FOMC events."
+
+  - series_id: US.FED_FUNDS.TARGET.LOWER
+    name: Federal funds target range lower bound
+    category: policy
+    frequency: D
+    unit: pct
+    outlier_method: none
+    sources:
+      - provider: fred
+        source_series_id: DFEDTARL
+        dataset: fred_series_observations
+        native_unit: pct
+        priority: 1
+        pit_support: ingestion_only
+        params: {current_only: true, history_start: "2008-12-16"}
+        notes: "Official effective-date lower bound; announcement availability is retained in the policy-event table."
+
+  - series_id: US.FED_FUNDS.TARGET.UPPER
+    name: Federal funds target range upper bound
+    category: policy
+    frequency: D
+    unit: pct
+    outlier_method: none
+    sources:
+      - provider: fred
+        source_series_id: DFEDTARU
+        dataset: fred_series_observations
+        native_unit: pct
+        priority: 1
+        pit_support: ingestion_only
+        params: {current_only: true, history_start: "2008-12-16"}
+        notes: "Official effective-date upper bound; announcement availability is retained in the policy-event table."
+
+  - series_id: US.WAGES.ECI.PRIVATE.SA
+    name: Employment Cost Index, wages and salaries, private industry workers
+    category: labour
+    frequency: Q
+    unit: index
+    seasonal_adjustment: SA
+    sources:
+      - {provider: fred, source_series_id: ECIWAG, dataset: fred_series_observations, native_unit: index,
+         priority: 1, pit_support: vintage,
+         notes: "BLS Employment Cost Index via ALFRED; index December 2005=100. Preserve vintages and the 2006 classification/rebasing change."}
+
+  - series_id: US.PRODUCTIVITY.NONFARM.SA
+    name: Nonfarm business labor productivity, output per hour
+    category: labour
+    frequency: Q
+    unit: index
+    seasonal_adjustment: SA
+    sources:
+      - {provider: fred, source_series_id: OPHNFB, dataset: fred_series_observations, native_unit: index,
+         priority: 1, pit_support: vintage,
+         notes: "BLS Productivity and Costs via ALFRED; index 2017=100. Context, not an entry condition; revisions must remain dated."}
+
+  - series_id: US.INFLATION.EXPECTED.10Y.CLEVELAND
+    name: Cleveland Fed model-based ten-year expected inflation
+    category: inflation_expectations
+    frequency: M
+    unit: pct
+    seasonal_adjustment: NSA
+    sources:
+      - {provider: fred, source_series_id: EXPINF10YR, dataset: fred_series_observations, native_unit: pct,
+         priority: 1, pit_support: vintage,
+         notes: "Cleveland Fed model using yields, inflation swaps and surveys; not a direct survey or pure expectations measure. Historical backcasts become usable only at their actual ALFRED vintage date."}
 
 instruments:
   - instrument_id: SPY

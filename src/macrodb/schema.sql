@@ -181,3 +181,40 @@ CREATE TABLE IF NOT EXISTS silver_run (
     series_rebuilt INTEGER,
     rows_written   BIGINT
 );
+
+------------------------------------------------------------------ policy announcements
+CREATE SEQUENCE IF NOT EXISTS seq_policy_event START 1;
+CREATE TABLE IF NOT EXISTS bronze_policy_event (
+    policy_version_id BIGINT PRIMARY KEY,
+    event_key         VARCHAR NOT NULL,
+    announcement_date DATE NOT NULL,
+    announcement_ts   TIMESTAMPTZ,
+    known_at          TIMESTAMPTZ NOT NULL,
+    scheduled         BOOLEAN NOT NULL,
+    target_kind       VARCHAR NOT NULL CHECK (target_kind IN ('single', 'range')),
+    target_low        DOUBLE NOT NULL,
+    target_high       DOUBLE NOT NULL,
+    timing_basis      VARCHAR NOT NULL,
+    payload           VARCHAR NOT NULL,
+    row_hash          VARCHAR NOT NULL UNIQUE,
+    batch_id          VARCHAR NOT NULL REFERENCES prov_batch(batch_id),
+    ingested_at       TIMESTAMP NOT NULL,
+    CHECK (target_low <= target_high)
+);
+CREATE INDEX IF NOT EXISTS idx_policy_event ON bronze_policy_event(event_key, policy_version_id);
+CREATE TABLE IF NOT EXISTS prov_policy_event_source (
+    policy_version_id BIGINT NOT NULL REFERENCES bronze_policy_event(policy_version_id),
+    source_role       VARCHAR NOT NULL,
+    response_id       BIGINT NOT NULL REFERENCES prov_raw_response(response_id),
+    PRIMARY KEY (policy_version_id, source_role)
+);
+CREATE TABLE IF NOT EXISTS prov_policy_target_lineage (
+    policy_version_id BIGINT NOT NULL REFERENCES bronze_policy_event(policy_version_id),
+    bronze_id         BIGINT NOT NULL REFERENCES bronze_observation(bronze_id),
+    PRIMARY KEY (policy_version_id, bronze_id)
+);
+CREATE TABLE IF NOT EXISTS prov_policy_exclusion (
+    batch_id          VARCHAR NOT NULL REFERENCES prov_batch(batch_id),
+    announcement_date DATE NOT NULL,
+    payload           VARCHAR NOT NULL
+);

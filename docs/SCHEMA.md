@@ -22,6 +22,11 @@ erDiagram
     bronze_observation ||--|| silver_observation : "bronze_id (1:1 lineage)"
     ref_series   ||--o{ silver_observation : ""
     silver_run   ||--o{ silver_observation : "silver_run_id"
+    prov_batch ||--o{ bronze_policy_event : "policy ingestion"
+    bronze_policy_event ||--o{ prov_policy_event_source : ""
+    prov_raw_response ||--o{ prov_policy_event_source : "calendar/statement/minutes"
+    bronze_policy_event ||--o{ prov_policy_target_lineage : ""
+    bronze_observation ||--o{ prov_policy_target_lineage : "numeric target validation"
 ```
 
 ## Layers
@@ -30,7 +35,7 @@ erDiagram
 |---|---|---|
 | Reference | `ref_provider`, `ref_frequency`, `ref_unit`, `ref_field`, `ref_instrument`, `ref_series`, `ref_dataset`, `ref_provider_series` | Synced from `config/*.yaml` (idempotent). Key/FK columns of referenced rows are immutable. |
 | Provenance | `prov_batch`, `prov_raw_response`, `prov_ingestion_task` | Append (batch row gets `finished_at`/`status` once). |
-| Bronze | `bronze_observation` (+ immutable per-batch Parquet files) | **Append-only.** No code path updates or deletes it (enforced by a test). |
+| Bronze | `bronze_observation`, `bronze_policy_event` (+ Parquet snapshots) | **Append-only.** Corrections create new versions, never overwrite original facts. |
 | Silver | `silver_observation`, `silver_run` | Rebuildable: a deterministic function of Bronze + reference + DQ config. |
 | Gold | — | Reserved, not implemented. |
 
@@ -63,6 +68,20 @@ Revision rule: same hash → skipped (idempotent). Changed value or new `realtim
 **appended**; the old row is never touched.
 
 ## Time concepts (point-in-time)
+
+FOMC documents use the same `prov_raw_response` / `data/raw/` archive as market providers.
+`bronze_policy_event` stores source-backed announcements with separate date, nullable clock,
+timezone-aware `known_at`, scheduled status, single/range bounds and timing basis. Its full source
+payload preserves evidence and URLs. `prov_policy_event_source` links calendar/statement/minutes
+responses; `prov_policy_target_lineage` links the underlying scalar target Bronze facts.
+`prov_policy_exclusion` records non-target actions rejected by each ingestion batch.
+`MacroDB.policy_events()` selects the latest event version; it does not convert assumed historical
+availability into verified publication timing.
+
+The registered scalar series `US.FED_FUNDS.TARGET.SINGLE/LOWER/UPPER` pass through ordinary Bronze/Silver.
+FRED effective-date targets are loaded as current-only facts, without fabricated vintage dates.
+They are calendar-day settings, not business-day market observations; weekday-based daily coverage
+percentages are not appropriate for these series. The single-target series is historical/discontinued.
 
 | Concept | Column | Notes |
 |---|---|---|
@@ -99,8 +118,25 @@ equal the canonical frequency.
 
 ## Storage
 
+User-approved estimates are appended to ordinary `bronze_observation` in the original provider/series
+mapping, then flow into Silver. They retain the original CPIAUCSL/CPILFESL identifiers. Their
+`source_attrs` and archived local JSON explicitly record `is_estimate`, origin, formula, rounding and
+the two input Bronze IDs; request provenance uses a local `urn:macrodb:user-approved-estimate:...`,
+not a fabricated FRED API response. Original missing versions remain intact.
+
+`MacroDB.get()` uses these flagged estimates by default, only when the latest official value is missing.
+Returned estimates have `dq_flags` including `ESTIMATED`, `dq_status="suspect"` and `pit_reliable=False`.
+They carry no fabricated publication/vintage timestamp. `include_estimates=False` selects source-only
+history before version selection, allowing original frozen inputs to reproduce exactly.
+`vintage="first"`, `quality="ok"` and strict PIT queries exclude estimates. All-version queries retain
+the official missing versions and the estimate records. Known official values always win, including
+after later refreshes. Research snapshot logic applies estimates only after creation and before the
+decision close, and propagates estimated-history flags to inputs and states.
+
 * `data/macrodb.duckdb` — all tables.
 * `data/raw/` — gzip raw responses (content-addressed, write-once).
 * `data/parquet/bronze_batches/<batch_id>.parquet` — immutable per-batch Bronze copies, written at ingest.
 * `macrodb export` → `data/parquet/{bronze,silver}/provider_id=…/` and `data/parquet/reference/*.parquet`
   (full snapshots, overwritten on each export).
+* Policy-event and lineage snapshots: `data/parquet/policy/*.parquet`.
+* Estimates are included in ordinary Bronze/Silver Parquet; audit: `data/reports/approved_estimates.csv`.

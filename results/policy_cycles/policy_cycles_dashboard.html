@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Policy cycles dashboard</title>
+<style>
+:root{color-scheme:light dark;
+--color-fg:#1f2328;--color-fg-muted:#59636e;--color-bg:#faf9f7;--color-panel:#ffffff;--color-border-line:#dcd9d3;
+--color-ok:#1a7f4b;--color-warn:#b25e09;--color-bad:#c62828;
+--font-anthropic-sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--font-anthropic-serif:Georgia,"Times New Roman",serif;
+--cds-font-size-caption:12.5px;--cds-font-size-body:14.5px;--cds-font-size-heading:18px;--cds-font-size-title:28px;--cds-font-weight-medium:600;
+--cds-gap-xs:4px;--cds-gap-sm:8px;--cds-gap-md:16px;--cds-gap-lg:24px;--cds-gap-xl:36px;--cds-pad-lg:18px;--cds-radius:8px;
+--cds-text-secondary:#4a5560;--cds-chart-muted:#a9aeb4;--cds-chart-grid:#e6e3dd;--cds-chart-axis:#8a9099;--cds-chart-reference:#6b727b;
+--cds-surface-popover:#ffffff;--cds-border:#cfcbc4;--cds-shadow-popover:0 4px 14px rgba(0,0,0,.14);
+--series-0:#2a6f97;--series-1:#c9742f}
+@media (prefers-color-scheme:dark){:root{
+--color-fg:#e8e6e1;--color-fg-muted:#a3a8ae;--color-bg:#16181b;--color-panel:#1e2125;--color-border-line:#32363c;
+--color-ok:#4cc38a;--color-warn:#e0a24a;--color-bad:#ef6a6a;
+--cds-text-secondary:#b4b9bf;--cds-chart-muted:#6c727a;--cds-chart-grid:#2c3036;--cds-chart-axis:#7a808a;--cds-chart-reference:#9aa0a8;
+--cds-surface-popover:#262a2f;--cds-border:#3c4148;--cds-shadow-popover:0 4px 14px rgba(0,0,0,.5);
+--series-0:#6db3de;--series-1:#e9a06a}}
+body{margin:0;background:var(--color-bg);color:var(--color-fg);font-family:var(--font-anthropic-sans);font-size:var(--cds-font-size-body)}
+.wrap{padding:28px max(16px,env(safe-area-inset-right,0px)) 48px max(16px,env(safe-area-inset-left,0px))}
+.dash-select{font:inherit;color:var(--color-fg);background-color:var(--color-panel);border:1px solid var(--color-border-line);border-radius:6px;padding:4px 8px}
+
+.pc { display: grid; gap: var(--cds-gap-xl); max-width: 1080px; margin: 0 auto; font-family: var(--font-anthropic-sans); color: var(--color-fg); }
+.pc * { box-sizing: border-box; }
+.pc h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
+.pc h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0 0 var(--cds-gap-xs); text-wrap: balance; }
+.pc p { margin: 0; line-height: 1.5; }
+.pc .pc-lede { font-size: var(--cds-font-size-heading); line-height: 1.45; max-width: 62ch; }
+.pc .pc-muted { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.pc .pc-sec { display: grid; gap: var(--cds-gap-md); min-width: 0; }
+.pc .pc-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); min-width: 0; }
+.pc .pc-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--cds-gap-md); }
+.pc .pc-tile h3 { font-size: var(--cds-font-size-body); font-weight: var(--cds-font-weight-medium); margin: 0 0 var(--cds-gap-sm); }
+.pc .pc-big { font-family: var(--font-anthropic-serif); font-size: 2rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.pc .pc-row { display: flex; justify-content: space-between; gap: var(--cds-gap-md); padding: 4px 0; border-top: 1px solid var(--color-border-line); font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.pc .pc-row:first-of-type { border-top: 0; }
+.pc .pc-row span:first-child { color: var(--color-fg-muted); }
+.pc .pc-controls { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); align-items: center; }
+.pc .pc-controls label { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); display: inline-flex; gap: var(--cds-gap-xs); align-items: center; }
+.pc .pc-chart { position: relative; min-height: 220px; width: 100%; }
+.pc .pc-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.pc .pc-chart text { fill: var(--cds-text-secondary); font-size: 11px; font-family: var(--font-anthropic-sans); }
+.pc .pc-chart .tick text { fill: var(--cds-text-secondary); font-size: 11px; }
+.pc .pc-chart .domain { stroke: var(--cds-chart-axis); }
+.pc .pc-chart .tick line { stroke: var(--cds-chart-grid); }
+.pc .tip { position: absolute; z-index: 5; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); box-shadow: var(--cds-shadow-popover); color: var(--cds-text-secondary); border-radius: var(--cds-radius); padding: 6px 8px; font-size: 12px; white-space: pre-line; max-width: 260px; font-variant-numeric: tabular-nums; }
+.pc .pc-key { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.pc .pc-key i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.pc .pc-scroll { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+.pc table { border-collapse: collapse; width: 100%; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.pc th { text-align: left; font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); padding: 6px 10px; border-bottom: 1px solid var(--color-border-line); position: sticky; top: 0; background: var(--color-panel); white-space: nowrap; }
+.pc td { padding: 5px 10px; border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+.pc td.num, .pc th.num { text-align: right; }
+.pc .pc-pill { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: 11px; border: 1px solid var(--color-border-line); }
+.pc .pc-pill.ok { color: var(--color-ok); border-color: var(--color-ok); }
+.pc .pc-pill.warn { color: var(--color-warn); border-color: var(--color-warn); }
+.pc ul { margin: 0; padding-left: 1.2em; display: grid; gap: var(--cds-gap-xs); line-height: 1.5; }
+.pc .pc-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--cds-gap-md); }
+.pc .dash-select { min-width: 0; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+</head><body><div class="wrap">
+
+<div class="pc">
+  <header class="pc-sec">
+    <h1 id="title">Policy cycles: what held up, and what was traded</h1>
+    <p class="pc-lede" id="takeaway">
+      After a Fed hike, the pause is the one state with a signal: its forward duration excess return over bills has an interval above zero in
+      <b data-draw="val" data-source="signal_counts" data-field="hold_yes" data-row="0" data-fmt="int">—</b> of
+      <b data-draw="val" data-source="signal_counts" data-field="hold_n" data-row="0" data-fmt="int">—</b> target and horizon combinations.
+      No other state has one (<b data-draw="val" data-source="signal_counts" data-field="other_yes" data-row="0" data-fmt="int">—</b> of
+      <b data-draw="val" data-source="signal_counts" data-field="other_n" data-row="0" data-fmt="int">—</b>).
+      The long-only rule built on it returned
+      <b data-draw="val" data-source="perf" data-field="annualized_return" data-where="strategy=net&amp;sample=all" data-fmt="p2">—</b> a year net of costs, but only
+      <b data-draw="val" data-source="perf" data-field="annualized_return" data-where="strategy=net&amp;sample=reserved" data-fmt="p2">—</b> in the reserved cycles, below bills at
+      <b data-draw="val" data-source="perf" data-field="annualized_return" data-where="strategy=bills_benchmark&amp;sample=reserved" data-fmt="p2">—</b>.
+    </p>
+    <p class="pc-muted">Source: results/policy_cycles, run of 11 Nov 2026, sessions Feb 1994 to Nov 2026. Six complete policy cycles plus one ongoing. Bond returns are model-estimated par bonds, not an observed index.</p>
+  </header>
+
+  <section class="pc-sec" id="rule-results">
+    <h2>The implemented rule against its benchmarks</h2>
+    <p class="pc-muted">Rule: 100% 8-year duration after a hold-after-hiking, easing or hold-after-easing state, 100% bills while hiking. Long-only, 5bp per unit traded, executed one session after the signal.</p>
+    <div class="pc-tiles">
+      <div class="pc-card pc-tile">
+        <h3>Rule (net of costs)</h3>
+        <div class="pc-big" data-draw="val" data-source="perf" data-field="annualized_return" data-where="strategy=net&amp;sample=all" data-fmt="p2">—</div>
+        <div class="pc-muted">a year, full sample</div>
+        <div class="pc-row"><span>Reserved cycles</span><span data-draw="val" data-source="perf" data-field="annualized_return" data-where="strategy=net&amp;sample=reserved" data-fmt="p2">—</span></div>
+        <div class="pc-row"><span>Max drawdown</span><span data-draw="val" data-source="perf" data-field="max_drawdown" data-where="strategy=net&amp;sample=all" data-fmt="p1">—</span></div>
+      </div>
+      <div class="pc-card pc-tile">
+        <h3>Duration buy and hold</h3>
+        <div class="pc-big" data-draw="val" data-source="perf" data-field="annualized_return" data-where="strategy=duration_buy_hold&amp;sample=all" data-fmt="p2">—</div>
+        <div class="pc-muted">a year, full sample</div>
+        <div class="pc-row"><span>Reserved cycles</span><span data-draw="val" data-source="perf" data-field="annualized_return" data-where="strategy=duration_buy_hold&amp;sample=reserved" data-fmt="p2">—</span></div>
+        <div class="pc-row"><span>Max drawdown</span><span data-draw="val" data-source="perf" data-field="max_drawdown" data-where="strategy=duration_buy_hold&amp;sample=all" data-fmt="p1">—</span></div>
+      </div>
+      <div class="pc-card pc-tile">
+        <h3>Bills</h3>
+        <div class="pc-big" data-draw="val" data-source="perf" data-field="annualized_return" data-where="strategy=bills_benchmark&amp;sample=all" data-fmt="p2">—</div>
+        <div class="pc-muted">a year, full sample</div>
+        <div class="pc-row"><span>Reserved cycles</span><span data-draw="val" data-source="perf" data-field="annualized_return" data-where="strategy=bills_benchmark&amp;sample=reserved" data-fmt="p2">—</span></div>
+        <div class="pc-row"><span>Max drawdown</span><span>none</span></div>
+      </div>
+    </div>
+    <div class="pc-card pc-sec">
+      <h2 id="equity-h">Growth of 1 unit, month-end</h2>
+      <p class="pc-muted">Log scale. Shaded bands are the months the rule held bills instead of duration.</p>
+      <div class="pc-chart" data-draw="equity" data-source="equity">—</div>
+    </div>
+    <div class="pc-card pc-sec">
+      <h2 id="cycle-ret-h">Total return inside each policy cycle</h2>
+      <p class="pc-muted">Compare the three bars in each cycle. The dashed line separates the design cycles from the reserved ones; an asterisk marks the ongoing cycle.</p>
+      <div class="pc-chart" data-draw="cyclebars" data-source="cycle_strategy">—</div>
+      <div class="pc-key"><span><i data-draw="swatch" data-c="0"></i>Rule</span><span><i data-draw="swatch" data-c="1"></i>Duration buy and hold</span><span><i data-draw="swatch" data-c="m"></i>Bills</span></div>
+    </div>
+  </section>
+
+  <section class="pc-sec" id="signal">
+    <h2>Verified signal: forward excess return by policy state</h2>
+    <p class="pc-muted">Equal-weight mean over complete cycles with a 95% cycle-bootstrap interval, excess over bills, full sample. A state counts as a signal when the interval excludes zero. Cells with too few cycles or months are descriptive only and are not drawn.</p>
+    <div class="pc-controls">
+      <label for="sel-target">Target
+        <select class="dash-select" id="sel-target"><option value="SYN8Y">8-year par bond</option><option value="SYN2Y">2-year par bond</option></select></label>
+      <label for="sel-horizon">Horizon
+        <select class="dash-select" id="sel-horizon"><option value="1">1 month</option><option value="3" selected>3 months</option><option value="6">6 months</option></select></label>
+    </div>
+    <div class="pc-card"><div class="pc-chart" data-draw="forest" data-source="state_signal">—</div></div>
+    <div class="pc-key"><span><i style="background:var(--color-ok)"></i>Interval excludes zero</span><span><i style="background:var(--cds-chart-muted)"></i>Interval includes zero</span></div>
+  </section>
+
+  <section class="pc-sec" id="consistency">
+    <h2>Does the signal repeat cycle by cycle?</h2>
+    <p class="pc-muted">8-year bond, 3-month forward excess return, mean within each cycle. Default view, hold after hiking: positive in all six complete cycles at this run, with the two reserved cycles close to zero.</p>
+    <div class="pc-controls">
+      <label for="sel-state">State
+        <select class="dash-select" id="sel-state"><option value="hold_after_hiking" selected>Hold after hiking</option><option value="hiking">Hiking</option><option value="easing">Easing</option><option value="hold_after_easing">Hold after easing</option></select></label>
+    </div>
+    <div class="pc-card"><div class="pc-chart" data-draw="cycles" data-source="cycle_state">—</div></div>
+    <div class="pc-key"><span><i data-draw="swatch" data-c="0"></i>Design cycle</span><span><i data-draw="swatch" data-c="1"></i>Reserved cycle (not pristine: outcomes seen before)</span></div>
+  </section>
+
+  <section class="pc-sec" id="trades-sec">
+    <h2>Implemented trades</h2>
+    <p class="pc-lede" style="font-size: var(--cds-font-size-body)">
+      <b data-draw="val" data-source="trade_summary" data-field="total" data-row="0" data-fmt="int">—</b> trades in total:
+      <b data-draw="val" data-source="trade_summary" data-field="design" data-row="0" data-fmt="int">—</b> in the design cycles and
+      <b data-draw="val" data-source="trade_summary" data-field="reserved" data-row="0" data-fmt="int">—</b> in the reserved cycles, costing
+      <b data-draw="val" data-source="trade_summary" data-field="cost_pct" data-row="0" data-fmt="p2">—</b> of capital. Most of the reserved-cycle trades come from 2016 to 2019, when each hike was followed by a short pause and the rule bought and sold duration back and forth.
+    </p>
+    <div class="pc-card">
+      <div class="pc-scroll">
+        <table data-source="trades" data-row-key="execution_date">
+          <thead><tr>
+            <th data-field="execution_date">Executed</th>
+            <th data-field="action">Trade</th>
+            <th data-field="decision_state">Signal state</th>
+            <th data-field="weight" class="num">Duration weight after</th>
+            <th data-field="cost" class="num">Cost</th>
+            <th data-field="sample">Sample</th>
+          </tr></thead>
+          <tbody data-draw="trades"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="pc-sec" id="inflation">
+    <h2>Inflation interaction</h2>
+    <div class="pc-card pc-sec">
+      <p><span class="pc-pill warn">Insufficient evidence</span> Within hold-after-hiking, high-and-rising CPI against all other known inflation states was not estimated. Each group needs at least 24 months and three complete cycles.</p>
+      <div class="pc-row"><span>High and rising: months, cycles</span><span><b data-draw="val" data-source="infl" data-field="months" data-where="group=high_and_rising" data-fmt="int">—</b>, <b data-draw="val" data-source="infl" data-field="cycles" data-where="group=high_and_rising" data-fmt="int">—</b></span></div>
+      <div class="pc-row"><span>Other known inflation: months, cycles</span><span><b data-draw="val" data-source="infl" data-field="months" data-where="group=other_known_inflation" data-fmt="int">—</b>, <b data-draw="val" data-source="infl" data-field="cycles" data-where="group=other_known_inflation" data-fmt="int">—</b></span></div>
+    </div>
+  </section>
+
+  <section class="pc-sec" id="limits">
+    <h2>What this does not show</h2>
+    <ul>
+      <li>Six complete cycles is a small number of independent observations. The 22 intervals above are descriptive, and I have not seen a multiple-testing correction applied across them.</li>
+      <li>Returns come from model-estimated par bonds (2-year and 8-year), not a tradable index. Roll-down, instrument choice, financing frictions and market impact are left out.</li>
+      <li>Event timing is partly reconstructed. 152 events are date-only and 30 scheduled holds are reconstructed, so each becomes usable only from the next calendar day.</li>
+      <li>The 2015-onward cycles were reserved but are not out-of-sample: their outcomes were seen in earlier work.</li>
+      <li>The rule was fixed in advance and not tuned, but one rule and one sample path make this a backtest, not evidence of a tradable edge.</li>
+    </ul>
+  </section>
+</div>
+
+</div>
+<script>
+(function(){
+  const CSV = {"perf": "strategy,sample,annualized_return,total_return,max_drawdown,duration_turnover,cost_sum\nnet,all,0.0455198508929313,3.304671227832312,-0.1126477325482656,41.0,0.0205\nnet,design,0.057833705356723,2.4200988316957304,-0.1122141513159296,17.0,0.0085\nnet,reserved,0.0212703377883796,0.257973213446101,-0.1126477325482661,24.0,0.012\nduration_buy_hold,all,0.0381316669572362,2.411508152229297,-0.226140057114643,1.0,0.0005\nduration_buy_hold,design,0.0536107441678914,2.1336012524007506,-0.1122141513159293,0.0,0.0\nduration_buy_hold,reserved,0.0090703433718364,0.1034682403103055,-0.2261400571146442,0.0,0.0\nbills_benchmark,all,0.0257205395812369,1.2996527433414156,-2.499710604841887e-06,0.0,0.0\nbills_benchmark,design,0.0267217623338955,0.7802711045049873,-1.3887696781456071e-06,0.0,0.0\nbills_benchmark,reserved,0.0237047360443596,0.2910592694699327,-2.499710604841887e-06,0.0,0.0\n", "cycle_strategy": "cycle_id,cycle,start,sample,complete,net,duration_buy_hold,bills_benchmark\nCYCLE_19940204,1994,1994-02-04,design,True,0.2354573451331136,0.1513244728348934,0.1738233952036367\nCYCLE_19970325,1997,1997-03-25,design,True,0.1868707107002143,0.2012038827138929,0.1179721616349049\nCYCLE_19990630,1999,1999-06-30,design,True,0.3970336109124959,0.3979885527390614,0.1633201848085248\nCYCLE_20040630,2004,2004-06-30,design,True,0.6695546252108864,0.6207859127278237,0.1661465419074674\nCYCLE_20151216,2015,2015-12-16,reserved,True,0.0870338523928404,0.1016496844341525,0.0598339538876722\nCYCLE_20220316,2022,2022-03-16,reserved,True,0.1377318910737666,-0.0156336482484685,0.2107379742278141\nCYCLE_20260916,2026 (ongoing),2026-09-16,reserved,False,0.0171579381816915,0.0175589151036481,0.0061394719888592\n", "state_signal": "target,horizon_months,state,months,complete_cycles,cycle_equal_weight_mean,cycle_ci_low,cycle_ci_high,ci_excludes_zero\nSYN2Y,1,hiking,75,6,-0.000806553429406,-0.0022779880772584,0.0008494379881287,no\nSYN2Y,1,hold_after_hiking,90,6,0.0018039163270996,0.0009546387756371,0.0025693597370691,yes\nSYN2Y,1,easing,48,6,-8.767006261449191e-05,-0.0016801629526019,0.0016912869877871,no\nSYN2Y,1,hold_after_easing,179,6,-1.2151467137632476e-05,-0.0013461081045677,0.0009705418156968,no\nSYN2Y,3,hiking,74,6,-0.0002724547450196,-0.0041665370401501,0.0043335987580943,no\nSYN2Y,3,hold_after_hiking,90,6,0.0044228984109702,0.0020217250770237,0.006846113752914,yes\nSYN2Y,3,easing,48,6,-0.0005379426838428,-0.0060268587098887,0.0047357160075594,no\nSYN2Y,3,hold_after_easing,178,6,0.0007270875097561,-0.0024004860212695,0.0035453005482601,no\nSYN2Y,6,hiking,74,6,-0.0006201177577945,-0.0073682140291758,0.0069719929310388,no\nSYN2Y,6,hold_after_hiking,90,6,0.0106586627998354,0.0048201667244456,0.0163735865703467,yes\nSYN2Y,6,easing,48,6,0.0027912461410036,-0.0065328715895252,0.0117574020260891,no\nSYN8Y,1,hiking,75,6,-0.001229832887067,-0.0056135096059666,0.0032483723927664,no\nSYN8Y,1,hold_after_hiking,90,6,0.0052434815081149,0.0026027741269249,0.0079156681651803,yes\nSYN8Y,1,easing,48,6,-0.0021306948651687,-0.0068707500157609,0.0043019970571953,no\nSYN8Y,1,hold_after_easing,179,6,-0.0003521400505619,-0.0057783949126941,0.0037166454046683,no\nSYN8Y,3,hiking,74,6,0.0033162790270822,-0.0087069201302045,0.0166012422856641,no\nSYN8Y,3,hold_after_hiking,90,6,0.012718101988556,0.005495912829545,0.0203711789471485,yes\nSYN8Y,3,easing,48,6,-0.0059927726496947,-0.0200756155818456,0.0080813180480069,no\nSYN8Y,3,hold_after_easing,178,6,-0.0003040564806331,-0.0137574324885839,0.010509796313261,no\nSYN8Y,6,hiking,74,6,0.0070831094054558,-0.0156454318093251,0.0312811947612807,no\nSYN8Y,6,hold_after_hiking,90,6,0.0269189107611398,0.0101333702330691,0.0435887429462585,yes\nSYN8Y,6,easing,48,6,-0.0016063914437395,-0.0299402246423407,0.0288850979560296,no\n", "cycle_state": "cycle_id,cycle,sample,complete,state,months,mean_excess\nCYCLE_19940204,1994,design,True,easing,4,-0.0320262285712006\nCYCLE_19940204,1994,design,True,hiking,8,0.0015067002757789\nCYCLE_19940204,1994,design,True,hold_after_easing,16,0.0061032645933977\nCYCLE_19940204,1994,design,True,hold_after_hiking,9,0.0178003609459434\nCYCLE_19970325,1997,design,True,easing,3,-0.0277609710683109\nCYCLE_19970325,1997,design,True,hiking,2,0.0324722310108566\nCYCLE_19970325,1997,design,True,hold_after_easing,7,-0.0262007179157398\nCYCLE_19970325,1997,design,True,hold_after_hiking,16,0.0249897916410707\nCYCLE_19990630,1999,design,True,easing,15,0.005944512583662\nCYCLE_19990630,1999,design,True,hiking,8,0.0007302535604717\nCYCLE_19990630,1999,design,True,hold_after_easing,27,0.0137327198030092\nCYCLE_19990630,1999,design,True,hold_after_hiking,10,0.0219117831702863\nCYCLE_20040630,2004,design,True,easing,12,0.0174802164224131\nCYCLE_20040630,2004,design,True,hiking,25,-0.0032524182229852\nCYCLE_20040630,2004,design,True,hold_after_easing,87,0.0093525593679513\nCYCLE_20040630,2004,design,True,hold_after_hiking,13,0.0080382363167449\nCYCLE_20151216,2015,reserved,True,easing,6,0.0072296415309806\nCYCLE_20151216,2015,reserved,True,hiking,14,0.0075210393669143\nCYCLE_20151216,2015,reserved,True,hold_after_easing,26,-0.0085119860761686\nCYCLE_20151216,2015,reserved,True,hold_after_hiking,29,0.0015223863240051\nCYCLE_20220316,2022,reserved,True,easing,8,-0.0068238067957128\nCYCLE_20220316,2022,reserved,True,hiking,17,-0.0190801318285427\nCYCLE_20220316,2022,reserved,True,hold_after_easing,15,-0.0069745649188577\nCYCLE_20220316,2022,reserved,True,hold_after_hiking,13,0.0020460535332857\n", "equity": "date,net,duration_buy_hold,bills_benchmark,executed_state,in_duration\n1994-02-28,1.0025633440175397,0.9687721338077797,1.0025633440175397,hiking,bills\n1994-03-31,1.0059113473467767,0.9224826843704941,1.0059113473467767,hiking,bills\n1994-04-30,1.0088291717721238,0.928450784807732,1.0088291717721238,hiking,bills\n1994-05-31,1.0123602174666197,0.9315589384997205,1.0123602174666197,hiking,bills\n1994-06-30,1.0158912670701123,0.92470571227987,1.0158912670701123,hiking,bills\n1994-07-31,1.0389052158157914,0.941875418515198,1.0197144748585827,hold_after_hiking,duration\n1994-08-31,1.0334936562998835,0.9440868259446046,1.023702458840544,hiking,bills\n1994-09-30,1.0353815903748036,0.922235252829304,1.0279705552267449,hold_after_hiking,duration\n1994-10-31,1.0268554568963384,0.9146408538779732,1.032122288323896,hold_after_hiking,duration\n1994-11-30,1.0226603422840217,0.9154659326531283,1.0367340648263987,hiking,bills\n1994-12-31,1.0255441238327896,0.9214844088484728,1.0421333057191244,hold_after_hiking,duration\n1995-01-31,1.0477391333733699,0.9414273394065953,1.047002527667726,hold_after_hiking,duration\n1995-02-28,1.0624480199344182,0.9729275321511138,1.051775451218465,hiking,bills\n1995-03-31,1.0705611139057643,0.9837717575385497,1.0573912645798387,hold_after_hiking,duration\n1995-04-30,1.0808530124113502,0.9932293017644088,1.0621131644213297,hold_after_hiking,duration\n1995-05-31,1.1498343617285696,1.0566183996624248,1.067378632507113,hold_after_hiking,duration\n1995-06-30,1.15450198625433,1.0609076243723388,1.0726537544780683,hold_after_hiking,duration\n1995-07-31,1.1404917649037711,1.0480331981462085,1.07741381870808,easing,duration\n1995-08-31,1.1650322221229903,1.0705841841812536,1.0825035068462536,hold_after_easing,duration\n1995-09-30,1.1747186011121928,1.0794852977735705,1.0875010293801957,hold_after_easing,duration\n1995-10-31,1.1952471940363791,1.0983496574803608,1.0923608690498432,hold_after_easing,duration\n1995-11-30,1.2210683628891958,1.122077529092809,1.0973126051920887,hold_after_easing,duration\n1995-12-31,1.2353992775225149,1.1352466503067489,1.102391490684647,easing,duration\n1996-01-31,1.244317476990584,1.1434418599503844,1.1070527604156322,easing,duration\n1996-02-29,1.2214988801975086,1.1224731447784044,1.111411236481638,easing,duration\n1996-03-31,1.1981941767497468,1.1010577311491196,1.1162247319652296,hold_after_easing,duration\n1996-04-30,1.1792113890893994,1.0836138597651972,1.120899230490851,hold_after_easing,duration\n1996-05-31,1.1708024982860459,1.0758866696243334,1.126131098275479,hold_after_easing,duration\n1996-06-30,1.1868425931959052,1.0906264095192264,1.130657836681495,hold_after_easing,duration\n1996-07-31,1.1998906909361686,1.1026167105676572,1.1357469362301975,hold_after_easing,duration\n1996-08-31,1.1863281449961058,1.09015366713852,1.1410871192208865,hold_after_easing,duration\n1996-09-30,1.2137493527366787,1.1153518640301996,1.1456704082896394,hold_after_easing,duration\n1996-10-31,1.2411783735320494,1.1405572405798645,1.1506571813732998,hold_after_easing,duration\n1996-11-30,1.26993166701818,1.1669795323112295,1.1557132975931574,hold_after_easing,duration\n1996-12-31,1.2408377193290576,1.1402442028843642,1.1606740686324746,hold_after_easing,duration\n1997-01-31,1.2538841599839494,1.1522329811857357,1.16594286086588,hold_after_easing,duration\n1997-02-28,1.248634752536884,1.1474091381345022,1.170548181211135,hold_after_easing,duration\n1997-03-31,1.229112258916745,1.1308137476764506,1.1754813698900122,hiking,bills\n1997-04-30,1.2344800304861532,1.1512510367387148,1.180614924967581,hiking,bills\n1997-05-31,1.2473643457036088,1.16008424045728,1.1859806803697792,hold_after_hiking,duration\n1997-06-30,1.2694205539862786,1.1805971400933004,1.1907618262414208,hold_after_hiking,duration\n1997-07-31,1.2960050985056595,1.205321520939117,1.196018803613079,hold_after_hiking,duration\n1997-08-31,1.293856184639601,1.203322970059656,1.2015637721792491,hold_after_hiking,duration\n1997-09-30,1.3222584853445687,1.2297379157441715,1.2064262941070267,hold_after_hiking,duration\n1997-10-31,1.340598900465201,1.2467950222890025,1.2120111103208915,hold_after_hiking,duration\n1997-11-30,1.3478057689149292,1.2534976144709704,1.2169284509931446,hold_after_hiking,duration\n1997-12-31,1.3713764670666178,1.2754190326648873,1.222600796947306,hold_after_hiking,duration\n1998-01-31,1.3900333660987991,1.2927704782289562,1.2279849728205687,hold_after_hiking,duration\n1998-02-28,1.3794590272506293,1.2829360430109948,1.232918252602638,hold_after_hiking,duration\n1998-03-31,1.3939577385549173,1.2964202559829128,1.2381639617727864,hold_after_hiking,duration\n1998-04-30,1.3962604885823344,1.298561878858154,1.2433426622937027,hold_after_hiking,duration\n1998-05-31,1.4140661510793837,1.3151216502873084,1.248770156988906,hold_after_hiking,duration\n1998-06-30,1.4290158553688854,1.3290252995342058,1.2540218700156605,hold_after_hiking,duration\n1998-07-31,1.433861107474724,1.333531521496046,1.2598105063463891,hold_after_hiking,duration\n1998-08-31,1.4839177611851615,1.3800856300045348,1.2648439114902463,hold_after_hiking,duration\n1998-09-30,1.5660179849813296,1.4564411680572331,1.2697689361517779,hold_after_hiking,duration\n1998-10-31,1.5324055392829798,1.4251806396701674,1.2742696714993833,easing,duration\n1998-11-30,1.5425832287584602,1.4346461797150152,1.278863221833828,easing,duration\n1998-12-31,1.542111230931791,1.4342072083413864,1.2842395602840364,hold_after_easing,duration\n1999-01-31,1.5406351956257485,1.4328344536183604,1.2886237526948237,hold_after_easing,duration\n1999-02-28,1.4815475641620335,1.3778812795092046,1.2931345427467467,hold_after_easing,duration\n1999-03-31,1.5021194041447625,1.397013674501391,1.2981438800437315,hold_after_easing,duration\n1999-04-30,1.498542722495208,1.3936872590646556,1.3031659972092238,hold_after_easing,duration\n1999-05-31,1.4636580882913006,1.3612435592639838,1.307953225552916,hold_after_easing,duration\n1999-06-30,1.4671046920420348,1.3644489985633348,1.3129968623141315,hold_after_easing,duration\n1999-07-31,1.4752305221429196,1.3635238073770681,1.3183837638732208,hiking,bills\n1999-08-31,1.481108712409164,1.3654052489249013,1.3236369839575752,hiking,bills\n1999-09-30,1.4869548367466283,1.3707049448311164,1.3288615473681131,hiking,bills\n1999-10-31,1.4926411954001044,1.3711808886054364,1.3344902484337051,hold_after_hiking,duration\n1999-11-30,1.4991904572523904,1.365420710789536,1.3402161807350412,hiking,bills\n1999-12-31,1.490431645169956,1.342342155888712,1.3467054810488177,hold_after_hiking,duration\n2000-01-31,1.4894289849643447,1.341439120136361,1.3525619839385707,hold_after_hiking,duration\n2000-02-29,1.5019810247702001,1.3628806182399846,1.3587068966586942,hiking,bills\n2000-03-31,1.5099592079705628,1.400785205108049,1.365924040123471,hiking,bills\n2000-04-30,1.516716834119266,1.3821133505403715,1.3720370556022712,hiking,bills\n2000-05-31,1.5243999380877935,1.3995856986697934,1.3789872674742094,hiking,bills\n2000-06-30,1.5355314088315326,1.429063955956977,1.3860823312636767,hold_after_hiking,duration\n2000-07-31,1.5429370331399508,1.4359561046357021,1.3928411326369377,hold_after_hiking,duration\n2000-08-31,1.5774689698628017,1.4680937384321777,1.4002838977497858,hold_after_hiking,duration\n2000-09-30,1.5787041379932214,1.4692432650680884,1.4076553257329103,hold_after_hiking,duration\n2000-10-31,1.5944058106214631,1.4838562480863462,1.4149429528434043,hold_after_hiking,duration\n2000-11-30,1.6290226209612473,1.5160728707111015,1.4223584423334938,hold_after_hiking,duration\n2000-12-31,1.705589062171993,1.5873305087775462,1.4297372001062332,hold_after_hiking,duration\n2001-01-31,1.6995097060822817,1.5816726703163684,1.4359418335656522,easing,duration\n2001-02-28,1.7264514163938216,1.606746352884251,1.441471589916344,easing,duration\n2001-03-31,1.7265557135379306,1.6068434184919607,1.4472180151176282,easing,duration\n2001-04-30,1.6992109890492608,1.5813946650978068,1.4517629244004817,easing,duration\n2001-05-31,1.7006519306876777,1.5827356977502531,1.4563332339082051,easing,duration\n2001-06-30,1.7119388046748507,1.5932399861664517,1.4607576443967218,easing,duration\n2001-07-31,1.7483544683038745,1.6271307369678902,1.4650779006882084,easing,duration\n2001-08-31,1.763914921212627,1.641612291863069,1.469768161573753,easing,duration\n2001-09-30,1.8360486825306968,1.708744593888528,1.472726758484554,easing,duration\n2001-10-31,1.8780868031303224,1.7478679635438652,1.4754781089049416,easing,duration\n2001-11-30,1.8277677814720883,1.7010378565612145,1.4779434382347396,easing,duration\n2001-12-31,1.7796230359846643,1.6562312703532813,1.480033532807241,easing,duration\n2002-01-31,1.8062755026587205,1.681035764251731,1.4820722048752426,easing,duration\n2002-02-28,1.8126492873414723,1.686967616834338,1.484067281275529,hold_after_easing,duration\n2002-03-31,1.7646826754962772,1.6423268132121507,1.4863585305827085,hold_after_easing,duration\n2002-04-30,1.8176897601403648,1.6916586039131096,1.4884897225080749,hold_after_easing,duration\n2002-05-31,1.8333178645127735,1.7062031195967955,1.4908565089928993,hold_after_easing,duration\n2002-06-30,1.8688700051790703,1.7392902205776728,1.4928328887139382,hold_after_easing,duration\n2002-07-31,1.9363067936420113,1.8020512185902233,1.4950057266267258,hold_after_easing,duration\n2002-08-31,2.0049822093821237,1.865964962542382,1.4972310476900896,hold_after_easing,duration\n2002-09-30,2.048410104461993,1.9063817454129768,1.4991365137547055,hold_after_easing,duration\n2002-10-31,2.02009685239637,1.880031618173512,1.5011898753660975,hold_after_easing,duration\n2002-11-30,1.9872509883294094,1.8494631516671345,1.5027932105547595,easing,duration\n2002-12-31,2.019805150885891,1.8797601420499184,1.5043347659343855,hold_after_easing,duration\n2003-01-31,2.0311544608848537,1.8903225374208092,1.5059025764287486,hold_after_easing,duration\n2003-02-28,2.0871499177287336,1.942435498844259,1.5072716982446401,hold_after_easing,duration\n2003-03-31,2.0716975188943176,1.9280545059968774,1.5086465703157306,hold_after_easing,duration\n2003-04-30,2.071893110237038,1.9282365358377327,1.5100752868418663,hold_after_easing,duration\n2003-05-31,2.1439106019968164,1.9952606299594182,1.5115156526773434,hold_after_easing,duration\n2003-06-30,2.130230010414536,1.9825285945129527,1.5126236859357454,easing,duration\n2003-07-31,2.0098115299403534,1.8704594378112263,1.513790625793764,easing,duration\n2003-08-31,1.9887005286879202,1.850812186839674,1.5150695626119275,hold_after_easing,duration\n2003-09-30,2.0929700534179707,1.9478520901848408,1.5162144479021036,hold_after_easing,duration\n2003-10-31,2.0342821129982465,1.893233330958678,1.5174974582778298,hold_after_easing,duration\n2003-11-30,2.033587834243625,1.89258719064666,1.5185984959994037,hold_after_easing,duration\n2003-12-31,2.0475361125969935,1.9055683525609073,1.5198047329601008,hold_after_easing,duration\n2004-01-31,2.0809390921913002,1.9366553064878962,1.5209623545399353,hold_after_easing,duration\n2004-02-29,2.113851176352559,1.9672854016587051,1.5220565609675654,hold_after_easing,duration\n2004-03-31,2.1341852904159393,1.986209631613991,1.5232856116136997,hold_after_easing,duration\n2004-04-30,2.0447216698022683,1.9029490516915695,1.5245636352557332,hold_after_easing,duration\n2004-05-31,2.0243196359123976,1.883961611192118,1.5258255792247757,hold_after_easing,duration\n2004-06-30,2.0495945655101977,1.9074840807878721,1.5274357525202895,hold_after_easing,duration\n2004-07-31,2.065288346952851,1.9244123241935376,1.529245636941876,hiking,bills\n2004-08-31,2.0678327131623933,1.9775160624724246,1.5311296164503376,hiking,bills\n2004-09-30,2.070694959381046,1.9706593976547737,1.5332489706548904,hiking,bills\n2004-10-31,2.073838458951807,1.9893835436967586,1.535576579296273,hiking,bills\n2004-11-30,2.077439924142107,1.9546803486942717,1.5382432892193645,hiking,bills\n2004-12-31,2.081622371973591,1.9779008195945662,1.5413401885494122,hiking,bills\n2005-01-31,2.085559588801888,1.9868756667010548,1.544255506241128,hiking,bills\n2005-02-28,2.089712553190659,1.9579581029210502,1.547330574514898,hiking,bills\n2005-03-31,2.094680086252424,1.9530298472583505,1.5510087912986588,hiking,bills\n2005-04-30,2.0997380925508096,1.9931899791911507,1.554753999116658,hiking,bills\n2005-05-31,2.1047460228702266,2.0381472157058536,1.5584621281061897,hiking,bills\n2005-06-30,2.1099972734710355,2.020485019448186,1.5623504239374346,hiking,bills\n2005-07-31,2.1158814619400435,1.988934858683486,1.56670737949594,hiking,bills\n2005-08-31,2.1222178663654048,2.0373854056132052,1.5713991789900295,hiking,bills\n2005-09-30,2.1287295889860296,1.9926812205778393,1.5762207930863166,hiking,bills\n2005-10-31,2.1351445308450905,1.9728626059609713,1.5809707457327244,hiking,bills\n2005-11-30,2.1421314038547252,1.9858940177164512,1.5861441855972425,hiking,bills\n2005-12-31,2.1498641786689157,2.0138561651919535,1.5918699294932472,hiking,bills\n2006-01-31,2.1572907148697227,1.99353220992043,1.5973689185808642,hiking,bills\n2006-02-28,2.16482256721538,1.9925636431058267,1.6029458891548187,hiking,bills\n2006-03-31,2.1739001639123736,1.9667588050151128,1.6096674082895583,hiking,bills\n2006-04-30,2.1817894292181843,1.947050520944679,1.615509025788339,hiking,bills\n2006-05-31,2.19077036455623,1.9556504610505254,1.6221589718850316,hiking,bills\n2006-06-30,2.20022728497621,1.9571971091101725,1.6291613617994942,hiking,bills\n2006-07-31,2.2091148113030146,1.9882152707328296,1.6357421430635357,hiking,bills\n2006-08-31,2.2453762446492895,2.028649905993592,1.6428331349736516,hold_after_hiking,duration\n2006-09-30,2.2713630507284326,2.052128435186709,1.6497381490922391,hold_after_hiking,duration\n2006-10-31,2.287092020056906,2.0663392260176976,1.6565930163182474,hold_after_hiking,duration\n2006-11-30,2.316543580722391,2.092948087636225,1.6635185677100124,hold_after_hiking,duration\n2006-12-31,2.2850252380667326,2.064471932240066,1.6707967672066433,hold_after_hiking,duration\n2007-01-31,2.2698906691187166,2.0507981695703084,1.677824164261811,hold_after_hiking,duration\n2007-02-28,2.324229983308002,2.0998925896633955,1.6844825325733561,hold_after_hiking,duration\n2007-03-31,2.3226171533511333,2.0984354319384124,1.691985593737161,hold_after_hiking,duration\n2007-04-30,2.332094635694269,2.106998136612194,1.698714735168297,hold_after_hiking,duration\n2007-05-31,2.2898925030625263,2.0688694031315005,1.705736783939675,hold_after_hiking,duration\n2007-06-30,2.296321531155734,2.0746778939214052,1.7125969525431648,hold_after_hiking,duration\n2007-07-31,2.3458655543465694,2.1194398701060826,1.719566200228776,hold_after_hiking,duration\n2007-08-31,2.3960688458174224,2.164797481226094,1.7264473175255322,hold_after_hiking,duration\n2007-09-30,2.404975300551756,2.172844274543071,1.7315099632020297,easing,duration\n2007-10-31,2.4476877629120906,2.2114340801306787,1.7373902711208882,easing,duration\n2007-11-30,2.554323418976608,2.3077771380775842,1.742467359842915,easing,duration\n2007-12-31,2.5599186349076457,2.3128322972294466,1.7468719260141115,easing,duration\n2008-01-31,2.636368195735373,2.38190285712158,1.7509313478306954,easing,duration\n2008-02-29,2.6723926323444767,2.4144501730178276,1.7541305670596468,easing,duration\n2008-03-31,2.662156488233752,2.4052020334966935,1.7558369100127778,easing,duration\n2008-04-30,2.6158324500135923,2.363349245571056,1.7577325899907807,easing,duration\n2008-05-31,2.586405760203344,2.3367628542437586,1.760453934895392,easing,duration\n2008-06-30,2.5872662076052473,2.3375402502570752,1.7630813337138436,hold_after_easing,duration\n2008-07-31,2.606599270463687,2.3550072632994565,1.7655753954485034,hold_after_easing,duration\n2008-08-31,2.6564631581958174,2.40005823032617,1.768276131212379,hold_after_easing,duration\n2008-09-30,2.6687268708892056,2.4111382351413377,1.7699378042726597,hold_after_easing,duration\n2008-10-31,2.6670010757299867,2.4095790157473242,1.7709606648371972,easing,duration\n2008-11-30,2.8982202941510375,2.6184806850473135,1.7711930404914358,easing,duration\n2008-12-31,2.9351568034941127,2.651852039351573,1.7712447086249206,easing,duration\n2009-01-31,2.8992988454064212,2.6194551332753355,1.7714396276345783,hold_after_easing,duration\n2009-02-28,2.876038384022836,2.598439798802271,1.7718390290575103,hold_after_easing,duration\n2009-03-31,2.927338805536412,2.6447886436913826,1.7721423973113002,hold_after_easing,duration\n2009-04-30,2.8352871885382744,2.561621956320021,1.7723768276237897,hold_after_easing,duration\n2009-05-31,2.7414336709950757,2.4768272899495676,1.7726398639174055,hold_after_easing,duration\n2009-06-30,2.7700631453653646,2.502693414002645,1.772904422136169,hold_after_easing,duration\n2009-07-31,2.752969038390949,2.4872492502063412,1.7731985864352209,hold_after_easing,duration\n2009-08-31,2.818461155137456,2.5464199913227694,1.773443015781235,hold_after_easing,duration\n2009-09-30,2.8562563293643985,2.5805671311730336,1.7736228887847192,hold_after_easing,duration\n2009-10-31,2.8238604791387254,2.5512981662628076,1.7737386926813155,hold_after_easing,duration\n2009-11-30,2.8752405971548582,2.597719015254932,1.7738101463006186,hold_after_easing,duration\n2009-12-31,2.766066339911005,2.49908238488065,1.7738993451384826,hold_after_easing,duration\n2010-01-31,2.813783617873413,2.542193935420737,1.7739846065151532,hold_after_easing,duration\n2010-02-28,2.8367444906216344,2.5629385979035657,1.7741349501833816,hold_after_easing,duration\n2010-03-31,2.7868017720658176,2.517816408896375,1.7743647037525547,hold_after_easing,duration\n2010-04-30,2.8242031715156006,2.551607781571059,1.7746196436646773,hold_after_easing,duration\n2010-05-31,2.9135132936335264,2.632297586351239,1.7748465058582295,hold_after_easing,duration\n2010-06-30,2.9861337173621143,2.6979086019310463,1.7750260290139264,hold_after_easing,duration\n2010-07-31,3.002472501449268,2.712670347487694,1.7752756351466157,hold_after_easing,duration\n2010-08-31,3.0823865700853723,2.7848710168465707,1.7755030712659154,hold_after_easing,duration\n2010-09-30,3.106671668548101,2.806812089230702,1.7757256003518191,hold_after_easing,duration\n2010-10-31,3.103560707953622,2.804001402187681,1.7759303828780244,hold_after_easing,duration\n2010-11-30,3.0251718993331096,2.733178772965561,1.7761411162324288,hold_after_easing,duration\n2010-12-31,2.9493216905315554,2.6646497149417465,1.7763642118508225,hold_after_easing,duration\n2011-01-31,2.94062744868785,2.656794651479243,1.7765809249846685,hold_after_easing,duration\n2011-02-28,2.94854940488277,2.6639519712061293,1.7767591442415447,hold_after_easing,duration\n2011-03-31,2.9384272053994747,2.6548067782438496,1.7769087323068684,hold_after_easing,duration\n2011-04-30,2.9881848012997816,2.69976171285054,1.776997099637553,hold_after_easing,duration\n2011-05-31,3.071604297411509,2.775129461729312,1.777056834191092,hold_after_easing,duration\n2011-06-30,3.025593846114009,2.733559992950162,1.7771121269973296,hold_after_easing,duration\n2011-07-31,3.1344674563584887,2.831924995124729,1.7771718672559649,hold_after_easing,duration\n2011-08-31,3.2661132149090877,2.9508641512436813,1.7772054394986958,hold_after_easing,duration\n2011-09-30,3.3250139593858328,3.004079727043257,1.7772276556053628,hold_after_easing,duration\n2011-10-31,3.294720025169817,2.9767097987535363,1.7772528345734553,hold_after_easing,duration\n2011-11-30,3.2772116004182372,2.9608913076160133,1.7772730764266722,hold_after_easing,duration\n2011-12-31,3.3101994608792507,2.990695141241953,1.7772923310487259,hold_after_easing,duration\n2012-01-31,3.3460784577766294,3.023111055437385,1.7773436811936505,hold_after_easing,duration\n2012-02-29,3.3089384216656215,2.989555819006637,1.7774745487376977,hold_after_easing,duration\n2012-03-31,3.271926681209859,2.9561164949845873,1.7776054228471014,hold_after_easing,duration\n2012-04-30,3.3301283947125424,3.0087005110964733,1.77772494664201,hold_after_easing,duration\n2012-05-31,3.434744597514288,3.103219035769078,1.7778602867307425,hold_after_easing,duration\n2012-06-30,3.4111230496116725,3.0818774672696985,1.7779976134456952,hold_after_easing,duration\n2012-07-31,3.4262233081512057,3.0955202312116885,1.7781403876227173,hold_after_easing,duration\n2012-08-31,3.4265049250614603,3.095774666128721,1.7783078791628306,hold_after_easing,duration\n2012-09-30,3.421877022101453,3.0915934537697067,1.778449199004493,hold_after_easing,duration\n2012-10-31,3.3971957941686655,3.0692944867948078,1.778613757872751,hold_after_easing,duration\n2012-11-30,3.429826769579012,3.098775882332158,1.7787570739633791,hold_after_easing,duration\n2012-12-31,3.384474233967376,3.0578008264481555,1.7788514670030109,hold_after_easing,duration\n2013-01-31,3.349013631714362,3.025762922957159,1.778962175366792,hold_after_easing,duration\n2013-02-28,3.393400383385237,3.065865413494797,1.7790956368930162,hold_after_easing,duration\n2013-03-31,3.396615549720423,3.0687702482186743,1.779228609541959,hold_after_easing,duration\n2013-04-30,3.442675467844473,3.1103844092284794,1.7793165980525065,hold_after_easing,duration\n2013-05-31,3.336502672522999,3.014459536164888,1.7793872856637105,hold_after_easing,duration\n2013-06-30,3.251816524004739,2.9379473936498326,1.7794550109532896,hold_after_easing,duration\n2013-07-31,3.2137684069634473,2.9035717253212017,1.7795098834620726,hold_after_easing,duration\n2013-08-31,3.185669078239797,2.878184576637521,1.7795786013220467,hold_after_easing,duration\n2013-09-30,3.2435067338810435,2.9304396741781247,1.7796003528253233,hold_after_easing,duration\n2013-10-31,3.255439201578626,2.941220406151511,1.779674515775639,hold_after_easing,duration\n2013-11-30,3.2328965184713274,2.920853569156847,1.7797753841538244,hold_after_easing,duration\n2013-12-31,3.185825736449311,2.878326114013612,1.7798782359555219,hold_after_easing,duration\n2014-01-31,3.2734818928272604,2.9575215957595495,1.7799484521415727,hold_after_easing,duration\n2014-02-28,3.278496744406113,2.9620524080046047,1.7800186725241336,hold_after_easing,duration\n2014-03-31,3.2335285920840167,2.9214246342859185,1.7800938404781925,hold_after_easing,duration\n2014-04-30,3.2669794391412097,2.9516467665008164,1.7801403251703847,hold_after_easing,duration\n2014-05-31,3.291815813376696,2.974085904876002,1.7801917565116998,hold_after_easing,duration\n2014-06-30,3.286042470822447,2.968869812090726,1.780241706025269,hold_after_easing,duration\n2014-07-31,3.2997864055640247,2.9812871661924816,1.7802787972964822,hold_after_easing,duration\n2014-08-31,3.3184133052520264,2.9981161757587254,1.7803292433492046,hold_after_easing,duration\n2014-09-30,3.3241897269291734,3.00333505046636,1.7803579282465254,hold_after_easing,duration\n2014-10-31,3.3447226125109184,3.0218860779409065,1.7803826567020906,hold_after_easing,duration\n2014-11-30,3.381554202113112,3.0551626394802645,1.780411837104727,hold_after_easing,duration\n2014-12-31,3.3932130587761318,3.0656961696758342,1.7804548676756267,hold_after_easing,duration\n2015-01-31,3.508860339411675,3.170181039660888,1.7804944364507305,hold_after_easing,duration\n2015-02-28,3.4122092659850707,3.0828588407695894,1.7805186722738606,hold_after_easing,duration\n2015-03-31,3.4749191545151352,3.1395158975878124,1.780557748305665,hold_after_easing,duration\n2015-04-30,3.4227087928975553,3.092344941076717,1.7805908888164406,hold_after_easing,duration\n2015-05-31,3.412468031579636,3.0830926300066217,1.7806151258774436,hold_after_easing,duration\n2015-06-30,3.3671022494280844,3.042105606154213,1.7806383740245468,hold_after_easing,duration\n2015-07-31,3.431624909131488,3.1004004633540627,1.7806908108097816,hold_after_easing,duration\n2015-08-31,3.4381432030153634,3.106289603896221,1.7807892652116009,hold_after_easing,duration\n2015-09-30,3.4740339755652387,3.13871615714441,1.7808174647738264,hold_after_easing,duration\n2015-10-31,3.4358584465639046,3.1042253748069917,1.7808446755811278,hold_after_easing,duration\n2015-11-30,3.4469190954776474,3.1142184369641983,1.7810262958302627,hold_after_easing,duration\n2015-12-31,3.434304748573434,3.0946746379747223,1.781390160084759,hiking,bills\n2016-01-31,3.4404190581806295,3.168903802067796,1.781745719574579,hold_after_hiking,duration\n2016-02-29,3.4733018577893007,3.1991915161341327,1.7821885839597535,hold_after_hiking,duration\n2016-03-31,3.491684761144571,3.2161236547342384,1.7826404655622983,hold_after_hiking,duration\n2016-04-30,3.47387217779571,3.1997168269192846,1.7829897990762125,hold_after_hiking,duration\n2016-05-31,3.475735585953481,3.2014331763221073,1.7833997303972062,hold_after_hiking,duration\n2016-06-30,3.583109551964664,3.3003332705786117,1.783798831916517,hold_after_hiking,duration\n2016-07-31,3.572331748527624,3.290406043193807,1.7842501265491943,hold_after_hiking,duration\n2016-08-31,3.5537814063129027,3.2733196798817237,1.784705507782817,hold_after_hiking,duration\n2016-09-30,3.548563849681707,3.2685138888526377,1.7851654726242174,hold_after_hiking,duration\n2016-10-31,3.5084561358263584,3.2315714452784317,1.7856295553987107,hold_after_hiking,duration\n2016-11-30,3.358597747290025,3.0935397668189846,1.786294584622482,hold_after_hiking,duration\n2016-12-31,3.3193428335446176,3.0961919781850122,1.7871224783203181,hiking,bills\n2017-01-31,3.3207122517556944,3.0983289243368484,1.7878597682568997,hiking,bills\n2017-02-28,3.320495260513808,3.10072772559272,1.788583946341055,hold_after_hiking,duration\n2017-03-31,3.3073358782648006,3.132067751685991,1.7897938822149044,hiking,bills\n2017-04-30,3.30939208192394,3.143472426342112,1.7909066148992083,hiking,bills\n2017-05-31,3.3469057466459526,3.173120559518577,1.7922832395287225,hold_after_hiking,duration\n2017-06-30,3.3568306400611894,3.143495614972182,1.7938540463585242,hiking,bills\n2017-07-31,3.371326046248633,3.173297550169359,1.795397555429501,hold_after_hiking,duration\n2017-08-31,3.3989734545010197,3.199320975869596,1.796972726117277,hold_after_hiking,duration\n2017-09-30,3.3571507478390434,3.1599548953507504,1.798564333616583,hold_after_hiking,duration\n2017-10-31,3.351917050814787,3.1550286207283706,1.8001781036461486,hold_after_hiking,duration\n2017-11-30,3.346294023210156,3.1497358844348375,1.8020284293338502,hold_after_hiking,duration\n2017-12-31,3.3516528321753682,3.13281157351029,1.8041429861617413,hiking,bills\n2018-01-31,3.3556044738512205,3.068623260285766,1.806270093881513,hiking,bills\n2018-02-28,3.3546406408506457,3.069276495380121,1.8084756827984745,hold_after_hiking,duration\n2018-03-31,3.352368794637781,3.089859216848618,1.811210569613478,hiking,bills\n2018-04-30,3.357132038457312,3.0415856721745396,1.8137840446933617,hiking,bills\n2018-05-31,3.374331956299968,3.0662592590827327,1.8167065786601007,hold_after_hiking,duration\n2018-06-30,3.365396746397698,3.07540359113813,1.8196894343496242,hiking,bills\n2018-07-31,3.370906276093199,3.0551187329167693,1.822668468838164,hiking,bills\n2018-08-31,3.396250783732439,3.0840693995710597,1.8261867018369382,hold_after_hiking,duration\n2018-09-30,3.361423772165738,3.050370549551711,1.8291173992410534,hiking,bills\n2018-10-31,3.367961803410297,3.0518328026858637,1.832675066324041,hiking,bills\n2018-11-30,3.425981124341676,3.092081798566242,1.8364866169708733,hold_after_hiking,duration\n2018-12-31,3.4773538013857674,3.1723452149515166,1.8401316840916735,hiking,bills\n2019-01-31,3.464062058575671,3.171787554051125,1.8437922787500007,hold_after_hiking,duration\n2019-02-28,3.4570132376593365,3.165333465736566,1.8472372736143592,hold_after_hiking,duration\n2019-03-31,3.5301222204592424,3.232273999079501,1.8510803818435149,hold_after_hiking,duration\n2019-04-30,3.532598632564625,3.2345414680109843,1.8547799609257456,hold_after_hiking,duration\n2019-05-31,3.661054296203937,3.352158897574608,1.858798728466834,hold_after_hiking,duration\n2019-06-30,3.6773171570460628,3.3670496064418525,1.8619406335572195,hold_after_hiking,duration\n2019-07-31,3.7166511267182782,3.4030648375053096,1.8653279983251452,hold_after_hiking,duration\n2019-08-31,3.8316775539449144,3.508386100258444,1.8686748069108967,easing,duration\n2019-09-30,3.7870207549144386,3.4674971447566296,1.8714321391354833,easing,duration\n2019-10-31,3.7739976907973816,3.455572880126372,1.8740993382320354,easing,duration\n2019-11-30,3.751398950220048,3.4348808708931746,1.8765953346407354,easing,duration\n2019-12-31,3.7463385766164126,3.4302474579394073,1.879086254578597,hold_after_easing,duration\n2020-01-31,3.845853039509774,3.5213655526836534,1.881635463473792,hold_after_easing,duration\n2020-02-29,3.9840495379930188,3.6479019502685244,1.8838434508876802,hold_after_easing,duration\n2020-03-31,4.139300748395827,3.7900540966736234,1.884257484388878,easing,duration\n2020-04-30,4.138422636985858,3.7892500744609396,1.884484226070365,hold_after_easing,duration\n2020-05-31,4.142773100977318,3.793233475251436,1.8846889780234397,hold_after_easing,duration\n2020-06-30,4.138720384068345,3.789522699625995,1.8849356718573802,hold_after_easing,duration\n2020-07-31,4.177654979763837,3.825172253231205,1.8851499016559967,hold_after_easing,duration\n2020-08-31,4.150501165839469,3.8003094974277647,1.8853065209127697,hold_after_easing,duration\n2020-09-30,4.150898538166752,3.8006733421224292,1.885475728280502,hold_after_easing,duration\n2020-10-31,4.102155942370186,3.756043322196266,1.885642851687531,hold_after_easing,duration\n2020-11-30,4.089519236313826,3.744472817304605,1.885780121000958,hold_after_easing,duration\n2020-12-31,4.097918744471942,3.7521636308597817,1.8859352143179096,hold_after_easing,duration\n2021-01-31,4.06250661235501,3.7197393387969906,1.886055733569746,hold_after_easing,duration\n2021-02-28,3.963085681840989,3.628706884792336,1.8861159900757805,hold_after_easing,duration\n2021-03-31,3.9016617189130884,3.572465467103844,1.8861652437654157,hold_after_easing,duration\n2021-04-30,3.9238648552710726,3.5927952505691296,1.8861998257711023,hold_after_easing,duration\n2021-05-31,3.93320031535055,3.6013430466509355,1.8862244524873044,hold_after_easing,duration\n2021-06-30,3.952646993560176,3.6191489435632698,1.8862826180909102,hold_after_easing,duration\n2021-07-31,4.03549489810047,3.695006693238854,1.8863711824276086,hold_after_easing,duration\n2021-08-31,4.0038780383348636,3.666057453702435,1.886457131008239,hold_after_easing,duration\n2021-09-30,3.958467883160888,3.6244787052352168,1.8865236894924502,hold_after_easing,duration\n2021-10-31,3.913030320956671,3.5828748621605873,1.8866070236782924,hold_after_easing,duration\n2021-11-30,3.9498409433096238,3.616579649159691,1.8866887891680608,hold_after_easing,duration\n2021-12-31,3.8930430014182145,3.5645739396369907,1.886794672937729,hold_after_easing,duration\n2022-01-31,3.836837443178964,3.513110632375962,1.8870201439192251,hold_after_easing,duration\n2022-02-28,3.865465298917305,3.539323060154286,1.8874976061734687,hold_after_easing,duration\n2022-03-31,3.718327635634489,3.3433850639259677,1.8882074014942172,hiking,bills\n2022-04-30,3.7207416832315916,3.2232176147510185,1.889433281240995,hiking,bills\n2022-05-31,3.7238046469349673,3.2437592815255645,1.8909886876768873,hiking,bills\n2022-06-30,3.728424931295366,3.265350188164901,1.8933349185584012,hiking,bills\n2022-07-31,3.735464412414249,3.3333357002888526,1.896909643987104,hiking,bills\n2022-08-31,3.743973268608697,3.18258783011285,1.9012305341342317,hiking,bills\n2022-09-30,3.7543692792680408,3.0941551085201024,1.906509741938532,hiking,bills\n2022-10-31,3.765686774278008,3.023070429209637,1.9122568895646308,hiking,bills\n2022-11-30,3.778846824518866,3.1504508960214395,1.918939706869563,hiking,bills\n2022-12-31,3.793740725081268,3.1048223651279896,1.926502992312603,hiking,bills\n2023-01-31,3.807791881032382,3.2054459958997557,1.933638322833824,hiking,bills\n2023-02-28,3.8217769372333605,3.06669055147635,1.9407400871796905,hiking,bills\n2023-03-31,3.838384243542104,3.215521012659169,1.9491734587821636,hiking,bills\n2023-04-30,3.8533030924767258,3.1919000775716815,1.956749413281214,hiking,bills\n2023-05-31,3.8705882237918057,3.1933584814437457,1.9655269918281246,hiking,bills\n2023-06-30,3.8322096038119318,3.128905376333371,1.9746693868272134,hold_after_hiking,duration\n2023-07-31,3.8142934044604275,3.1101825780787773,1.9831544110287107,hiking,bills\n2023-08-31,3.831963214793922,3.100520575906812,1.9923414238222028,hiking,bills\n2023-09-30,3.805206101666442,3.0144871683019128,2.001607845902273,hold_after_hiking,duration\n2023-10-31,3.812675476660949,3.0204044128544005,2.010649024874369,hold_after_hiking,duration\n2023-11-30,3.966938047238008,3.1426113386107115,2.0196147413304932,hold_after_hiking,duration\n2023-12-31,4.047385412214873,3.2063418023404564,2.029162471515555,hold_after_hiking,duration\n2024-01-31,4.088324905621451,3.238774100159189,2.0381327562824785,hold_after_hiking,duration\n2024-02-29,4.008072002998296,3.1751976896539773,2.0468682022338385,hold_after_hiking,duration\n2024-03-31,3.9814102196048213,3.1540762045684576,2.056245106922563,hold_after_hiking,duration\n2024-04-30,3.9169515112792705,3.103011966800208,2.0653676454923695,hold_after_hiking,duration\n2024-05-31,3.990606626684157,3.161361605252273,2.0754704601000453,hold_after_hiking,duration\n2024-06-30,3.9902114271736866,3.1610485278994562,2.0840639588285312,hold_after_hiking,duration\n2024-07-31,4.150902907854823,3.28834844113059,2.0935422342189045,hold_after_hiking,duration\n2024-08-31,4.212247569844043,3.3369457290223914,2.103367918143804,hold_after_hiking,duration\n2024-09-30,4.257645271747319,3.3729098230035004,2.1111857512212633,easing,duration\n2024-10-31,4.084146145644887,3.235463683327036,2.11950483673327,easing,duration\n2024-11-30,4.14421383514285,3.2830493526398894,2.127671605845913,easing,duration\n2024-12-31,4.063513936346239,3.2191188314260413,2.135578368009808,easing,duration\n2025-01-31,4.087685672758371,3.2382676993988024,2.143667378578585,hold_after_easing,duration\n2025-02-28,4.207124616131023,3.3328873211939842,2.1507840679384365,hold_after_easing,duration\n2025-03-31,4.2260409706122894,3.347872871603422,2.158148930312193,hold_after_easing,duration\n2025-04-30,4.237652525165186,3.3570715539529563,2.165814556698909,hold_after_easing,duration\n2025-05-31,4.1946262971603065,3.3229861433981007,2.1740871856602415,hold_after_easing,duration\n2025-06-30,4.262129787363813,3.376462459686183,2.18159185731867,hold_after_easing,duration\n2025-07-31,4.290481655384994,3.398922831099393,2.189674092018293,hold_after_easing,duration\n2025-08-31,4.300491027190118,3.406852263057388,2.197792205760695,hold_after_easing,duration\n2025-09-30,4.349105084504669,3.4453643562419387,2.2048016799107826,easing,duration\n2025-10-31,4.3577904455214425,3.4522449058462454,2.212605986118929,easing,duration\n2025-11-30,4.3839133076868935,3.4729394571249745,2.2191721868738057,easing,duration\n2025-12-31,4.372892391422175,3.464208678876623,2.226316926617848,easing,duration\n2026-01-31,4.359460299558445,3.4535677654845913,2.233221299302383,hold_after_easing,duration\n2026-02-28,4.4406747445297965,3.5179059105694734,2.2395406408558793,hold_after_easing,duration\n2026-03-31,4.363276373694319,3.4565908623178587,2.2463534961849003,hold_after_easing,duration\n2026-04-30,4.361665444851605,3.455314683263254,2.253181339995437,hold_after_easing,duration\n2026-05-31,4.344843493113539,3.441988320300159,2.2602367803215175,hold_after_easing,duration\n2026-06-30,4.351545822476174,3.4472979107195965,2.2672036047812076,hold_after_easing,duration\n2026-07-31,4.312463407453592,3.4163367918093157,2.2750336428569726,hold_after_easing,duration\n2026-08-31,4.295474314599239,3.4028780195267543,2.2819333905584216,hold_after_easing,duration\n2026-09-30,4.257789533021949,3.3164004464883914,2.289505121372751,hiking,bills\n2026-10-31,4.2922805159743325,3.40168835130195,2.297838936780381,hold_after_hiking,duration\n2026-11-30,4.304671227833016,3.4115081522299553,2.2996527433414156,hold_after_hiking,duration\n", "trades": "execution_date,action,decision_state,weight,turnover,cost,cycle_id,sample\n1994-07-08,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_19940204,design\n1994-08-18,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_19940204,design\n1994-09-29,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_19940204,design\n1994-11-17,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_19940204,design\n1994-12-22,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_19940204,design\n1995-02-03,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_19940204,design\n1995-03-30,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_19940204,design\n1997-03-27,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_19970325,design\n1997-05-22,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_19970325,design\n1999-07-02,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_19990630,design\n1999-10-07,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_19990630,design\n1999-11-18,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_19990630,design\n1999-12-23,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_19990630,design\n2000-02-04,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_19990630,design\n2000-06-30,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_19990630,design\n2004-07-02,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_20040630,design\n2006-08-10,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_20040630,design\n2015-12-18,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_20151216,reserved\n2016-01-28,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_20151216,reserved\n2016-12-15,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_20151216,reserved\n2017-02-02,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_20151216,reserved\n2017-03-16,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_20151216,reserved\n2017-05-04,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_20151216,reserved\n2017-06-15,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_20151216,reserved\n2017-07-27,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_20151216,reserved\n2017-12-14,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_20151216,reserved\n2018-02-01,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_20151216,reserved\n2018-03-22,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_20151216,reserved\n2018-05-03,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_20151216,reserved\n2018-06-14,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_20151216,reserved\n2018-08-02,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_20151216,reserved\n2018-09-27,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_20151216,reserved\n2018-11-09,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_20151216,reserved\n2018-12-20,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_20151216,reserved\n2019-01-31,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_20151216,reserved\n2022-03-17,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_20220316,reserved\n2023-06-15,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_20220316,reserved\n2023-07-27,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_20220316,reserved\n2023-09-21,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_20220316,reserved\n2026-09-17,Sell duration (to bills),hiking,0.0,1.0,0.0005,CYCLE_20260916,reserved\n2026-10-29,Buy duration (from bills),hold_after_hiking,1.0,1.0,0.0005,CYCLE_20260916,reserved\n", "infl": "group,months,cycles,complete_cycles,mean_excess\nhigh_and_rising,3,3,3,0.0315499105675947\nother_known_inflation,87,6,6,0.0098822182323821\n"};
+  const rows = {}; for (const k in CSV) rows[k] = d3.csvParse(CSV[k]);
+  const calcs = {}, draws = {};
+  window.dash = {
+    colors: ['var(--series-0)', 'var(--series-1)'],
+    data(id){ if (calcs[id]) return {status:'ok', data: calcs[id].fn(...calcs[id].inputs.map(i => dash.data(i).data))}; return rows[id] ? {status:'ok', data: rows[id], columns: rows[id].columns} : {status:'missing', data: []}; },
+    calc(id, o){ calcs[id] = o; },
+    draw(name, fn){ if (fn) draws[name] = fn; if (window.__ready) document.querySelectorAll('[data-draw="'+name+'"]').forEach(el => draws[name](el)); },
+    renderAll(){ for (const n in draws) document.querySelectorAll('[data-draw="'+n+'"]').forEach(el => draws[n](el)); }
+  };
+})();
+</script>
+<script>
+(function () {
+  const parse = d3.utcParse('%Y-%m-%d');
+  const NAMES = { hiking: 'Hiking', hold_after_hiking: 'Hold after hiking', easing: 'Easing', hold_after_easing: 'Hold after easing' };
+  const STATES = Object.keys(NAMES);
+  const pct = (v, d, sign) => (sign && v > 0 ? '+' : '') + d3.format('.' + d + 'f')(v * 100) + '%';
+  const col = (i) => dash.colors[i % dash.colors.length];
+  const sel = { target: 'SYN8Y', horizon: '3', state: 'hold_after_hiking' };
+
+  function good(id) { const g = dash.data(id); return g.status === 'ok' ? g : null; }
+  function fail(el) { el.replaceChildren(); el.textContent = '—'; }
+
+  // ---------- calcs
+  dash.calc('signal_counts', {
+    inputs: ['state_signal'],
+    title: 'Intervals that exclude zero',
+    description: 'Counts of state, target and horizon cells whose 95% cycle-bootstrap interval excludes zero.',
+    fn: (signal) => {
+      const h = signal.filter((r) => r.state === 'hold_after_hiking');
+      const o = signal.filter((r) => r.state !== 'hold_after_hiking');
+      const y = (r) => r.ci_excludes_zero === 'yes';
+      return [{ hold_yes: h.filter(y).length, hold_n: h.length, other_yes: o.filter(y).length, other_n: o.length }];
+    }
+  });
+  dash.calc('trade_summary', {
+    inputs: ['trades'],
+    title: 'Trade counts and cost',
+    description: 'Number of trades by sample and the sum of their costs.',
+    fn: (trades) => [{
+      total: trades.length,
+      design: trades.filter((r) => r.sample === 'design').length,
+      reserved: trades.filter((r) => r.sample === 'reserved').length,
+      cost_pct: trades.reduce((a, r) => a + Number(r.cost), 0)
+    }]
+  });
+
+  dash.draw('swatch', (el) => { el.style.background = el.dataset.c === 'm' ? 'var(--cds-chart-muted)' : col(Number(el.dataset.c)); });
+
+  // ---------- generic number
+  dash.draw('val', (el) => {
+    const g = good(el.dataset.source);
+    if (!g) { el.textContent = '—'; return; }
+    let row;
+    if (el.dataset.where) {
+      const kv = el.dataset.where.split('&').map((s) => s.split('=').map(decodeURIComponent));
+      row = g.data.find((r) => kv.every(([k, v]) => String(r[k]) === v));
+    } else row = g.data[Number(el.dataset.row || 0)];
+    if (!row) { el.textContent = '—'; return; }
+    const v = Number(row[el.dataset.field]);
+    const f = el.dataset.fmt;
+    el.textContent = f === 'int' ? String(v) : f === 'p1' ? pct(v, 1) : pct(v, 2);
+  });
+
+  // ---------- tooltip
+  function mkTip(el) {
+    const t = document.createElement('div');
+    t.className = 'tip'; t.hidden = true; el.appendChild(t);
+    return {
+      show(text, px, py) {
+        t.textContent = text; t.hidden = false;
+        const w = el.clientWidth;
+        t.style.left = Math.max(0, Math.min(px + 12, w - t.offsetWidth)) + 'px';
+        t.style.top = Math.max(0, py - t.offsetHeight - 8) + 'px';
+      },
+      hide() { t.hidden = true; }
+    };
+  }
+  function svgBase(el, W, H, label) {
+    const svg = d3.create('svg').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img').attr('aria-label', label);
+    return svg;
+  }
+
+  // ---------- equity curve
+  dash.draw('equity', (el) => {
+    const g = good('equity'); if (!g) { fail(el); return; }
+    const rows = g.data.map((r) => ({ d: parse(r.date), net: +r.net, bh: +r.duration_buy_hold, bl: +r.bills_benchmark, dur: r.in_duration === 'duration', st: r.executed_state }));
+    const W = el.clientWidth || 640, H = Math.round(Math.max(250, Math.min(380, W * 0.45)));
+    const m = { t: 10, r: 96, b: 26, l: 40 };
+    const x = d3.scaleUtc().domain(d3.extent(rows, (d) => d.d)).range([m.l, W - m.r]);
+    const top = d3.max(rows, (d) => Math.max(d.net, d.bh, d.bl)) * 1.05;
+    const y = d3.scaleLog().domain([0.85, top]).range([H - m.b, m.t]);
+    const svg = svgBase(el, W, H, 'Growth of one unit for the rule, duration buy and hold, and bills, 1994 to 2026');
+    // bills bands
+    let start = null;
+    const bands = [];
+    rows.forEach((d, i) => {
+      if (!d.dur && start === null) start = i > 0 ? rows[i - 1].d : d.d;
+      if ((d.dur || i === rows.length - 1) && start !== null) { bands.push([start, d.d]); start = null; }
+    });
+    svg.append('g').selectAll('rect').data(bands).join('rect')
+      .attr('x', (b) => x(b[0])).attr('width', (b) => Math.max(1, x(b[1]) - x(b[0])))
+      .attr('y', m.t).attr('height', H - m.t - m.b).style('fill', 'var(--cds-chart-grid)').style('opacity', 0.55);
+    const ticks = [1, 1.5, 2, 3, 4].filter((v) => v < top);
+    svg.append('g').attr('transform', `translate(${m.l},0)`)
+      .call(d3.axisLeft(y).tickValues(ticks).tickFormat((v) => d3.format('.1f')(v) + '×').tickSize(-(W - m.l - m.r)))
+      .call((s) => s.select('.domain').remove());
+    svg.append('g').attr('transform', `translate(0,${H - m.b})`)
+      .call(d3.axisBottom(x).ticks(Math.max(3, Math.floor(W / 90))).tickSizeOuter(0));
+    const series = [['net', 'Rule', col(0)], ['bh', 'Buy and hold', col(1)], ['bl', 'Bills', 'var(--cds-chart-muted)']];
+    series.forEach(([k, , c]) => {
+      svg.append('path').datum(rows).attr('fill', 'none').style('stroke', c).attr('stroke-width', 1.8)
+        .attr('d', d3.line().x((d) => x(d.d)).y((d) => y(d[k])));
+    });
+    // direct labels with nudging
+    const last = rows[rows.length - 1];
+    const lab = series.map(([k, n, c]) => ({ n, c, v: last[k], y: y(last[k]) })).sort((a, b) => a.y - b.y);
+    for (let i = 1; i < lab.length; i++) if (lab[i].y - lab[i - 1].y < 14) lab[i].y = lab[i - 1].y + 14;
+    svg.append('g').selectAll('text').data(lab).join('text')
+      .attr('x', W - m.r + 6).attr('y', (d) => d.y + 4).style('fill', (d) => d.c).style('font-weight', 600)
+      .text((d) => `${d.n} ${d3.format('.2f')(d.v)}×`);
+    // hover
+    const cross = svg.append('line').attr('y1', m.t).attr('y2', H - m.b).style('stroke', 'var(--cds-chart-reference)').attr('visibility', 'hidden');
+    const bis = d3.bisector((d) => d.d).center;
+    const fmtD = d3.utcFormat('%b %Y');
+    el.replaceChildren(svg.node());
+    const tip = mkTip(el);
+    svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', W - m.l - m.r).attr('height', H - m.t - m.b).attr('fill', 'transparent')
+      .on('mousemove', (ev) => {
+        const [px] = d3.pointer(ev);
+        const d = rows[bis(rows, x.invert(px))];
+        cross.attr('x1', x(d.d)).attr('x2', x(d.d)).attr('visibility', 'visible');
+        tip.show(`${fmtD(d.d)}\nRule ${d3.format('.2f')(d.net)}×\nBuy and hold ${d3.format('.2f')(d.bh)}×\nBills ${d3.format('.2f')(d.bl)}×\nHolding ${d.dur ? 'duration' : 'bills'} (${NAMES[d.st] || d.st})`, x(d.d), m.t + 40);
+      })
+      .on('mouseleave', () => { cross.attr('visibility', 'hidden'); tip.hide(); });
+  });
+
+  // ---------- per-cycle grouped bars
+  dash.draw('cyclebars', (el) => {
+    const g = good('cycle_strategy'); if (!g) { fail(el); return; }
+    const rows = g.data.map((r) => ({ label: r.cycle.slice(0, 4) + (r.complete === 'True' ? '' : '*'), full: r.cycle, sample: r.sample, vals: [['Rule', +r.net, col(0)], ['Buy and hold', +r.duration_buy_hold, col(1)], ['Bills', +r.bills_benchmark, 'var(--cds-chart-muted)']] }));
+    const W = el.clientWidth || 640, H = 280, m = { t: 22, r: 8, b: 40, l: 44 };
+    const x0 = d3.scaleBand().domain(rows.map((r) => r.label)).range([m.l, W - m.r]).paddingInner(0.2);
+    const x1 = d3.scaleBand().domain([0, 1, 2]).range([0, x0.bandwidth()]).padding(0.08);
+    const all = rows.flatMap((r) => r.vals.map((v) => v[1]));
+    const y = d3.scaleLinear().domain([Math.min(0, d3.min(all)) * 1.15, d3.max(all) * 1.1]).nice().range([H - m.b, m.t]);
+    const svg = svgBase(el, W, H, 'Total return of the rule, duration buy and hold, and bills inside each policy cycle');
+    svg.append('g').attr('transform', `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5).tickFormat((v) => pct(v, 0)).tickSize(-(W - m.l - m.r))).call((s) => s.select('.domain').remove());
+    svg.append('line').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y(0)).attr('y2', y(0)).style('stroke', 'var(--cds-chart-axis)');
+    const gs = svg.append('g').selectAll('g').data(rows).join('g').attr('transform', (r) => `translate(${x0(r.label)},0)`);
+    const tipHolder = {};
+    gs.selectAll('rect').data((r) => r.vals.map((v, i) => ({ r, v, i }))).join('rect')
+      .attr('x', (d) => x1(d.i)).attr('width', x1.bandwidth())
+      .attr('y', (d) => Math.min(y(0), y(d.v[1]))).attr('height', (d) => Math.abs(y(d.v[1]) - y(0)))
+      .style('fill', (d) => d.v[2])
+      .on('mousemove', (ev, d) => { const [px, py] = d3.pointer(ev, el); tipHolder.t && tipHolder.t.show(`${d.r.full} cycle (${d.r.sample})\n${d.v[0]}: ${pct(d.v[1], 1, true)}`, px, py); })
+      .on('mouseleave', () => tipHolder.t && tipHolder.t.hide());
+    svg.append('g').attr('transform', `translate(0,${H - m.b})`).selectAll('text').data(rows).join('text')
+      .attr('x', (r) => x0(r.label) + x0.bandwidth() / 2).attr('y', 16).attr('text-anchor', 'middle').text((r) => r.label);
+    const firstRes = rows.findIndex((r) => r.sample === 'reserved');
+    if (firstRes > 0) {
+      const bx = x0(rows[firstRes].label) - (x0.step() - x0.bandwidth()) / 2;
+      svg.append('line').attr('x1', bx).attr('x2', bx).attr('y1', m.t - 6).attr('y2', H - m.b + 22).style('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '3 3');
+      svg.append('text').attr('x', bx + 6).attr('y', m.t - 8).text('Reserved cycles (* ongoing)');
+    }
+    el.replaceChildren(svg.node());
+    tipHolder.t = mkTip(el);
+  });
+
+  // ---------- forest plot
+  dash.draw('forest', (el) => {
+    const g = good('state_signal'); if (!g) { fail(el); return; }
+    const rows = g.data.filter((r) => r.target === sel.target && r.horizon_months === sel.horizon);
+    const byState = Object.fromEntries(rows.map((r) => [r.state, r]));
+    const W = el.clientWidth || 640, rowH = 46, m = { t: 12, r: 16, b: 30, l: Math.min(140, W * 0.34) };
+    const H = m.t + m.b + rowH * STATES.length;
+    const lo = d3.min(rows, (r) => +r.cycle_ci_low), hi = d3.max(rows, (r) => +r.cycle_ci_high);
+    const pad = (hi - lo) * 0.08;
+    const x = d3.scaleLinear().domain([Math.min(0, lo) - pad, Math.max(0, hi) + pad]).nice().range([m.l, W - m.r]);
+    const svg = svgBase(el, W, H, `Forward ${sel.horizon}-month excess return by policy state with 95% cycle-bootstrap intervals`);
+    svg.append('g').attr('transform', `translate(0,${H - m.b})`).call(d3.axisBottom(x).ticks(Math.max(3, Math.floor((W - m.l) / 80))).tickFormat((v) => pct(v, 1)).tickSize(-(H - m.t - m.b))).call((s) => s.select('.domain').remove());
+    svg.append('line').attr('x1', x(0)).attr('x2', x(0)).attr('y1', m.t).attr('y2', H - m.b).style('stroke', 'var(--cds-chart-reference)').attr('stroke-width', 1.5);
+    const tipHolder = {};
+    STATES.forEach((s, i) => {
+      const cy = m.t + rowH * i + rowH / 2;
+      svg.append('text').attr('x', m.l - 10).attr('y', cy + 4).attr('text-anchor', 'end').style('fill', 'var(--color-fg)').text(NAMES[s]);
+      const r = byState[s];
+      if (!r) { svg.append('text').attr('x', m.l + 8).attr('y', cy + 4).style('font-style', 'italic').text('descriptive only (too few cycles)'); return; }
+      const c = r.ci_excludes_zero === 'yes' ? 'var(--color-ok)' : 'var(--cds-chart-muted)';
+      const grp = svg.append('g').style('cursor', 'default');
+      grp.append('line').attr('x1', x(+r.cycle_ci_low)).attr('x2', x(+r.cycle_ci_high)).attr('y1', cy).attr('y2', cy).style('stroke', c).attr('stroke-width', 3).attr('stroke-linecap', 'round');
+      grp.append('circle').attr('cx', x(+r.cycle_equal_weight_mean)).attr('cy', cy).attr('r', 5.5).style('fill', c);
+      grp.append('rect').attr('x', m.l).attr('width', W - m.l - m.r).attr('y', cy - rowH / 2).attr('height', rowH).attr('fill', 'transparent')
+        .on('mousemove', (ev) => { const [px, py] = d3.pointer(ev, el); tipHolder.t && tipHolder.t.show(`${NAMES[s]}\nMean ${pct(+r.cycle_equal_weight_mean, 2, true)}\n95% interval ${pct(+r.cycle_ci_low, 2, true)} to ${pct(+r.cycle_ci_high, 2, true)}\n${r.complete_cycles} complete cycles, ${r.months} months`, px, py); })
+        .on('mouseleave', () => tipHolder.t && tipHolder.t.hide());
+    });
+    el.replaceChildren(svg.node());
+    tipHolder.t = mkTip(el);
+  });
+
+  // ---------- per-cycle for one state
+  dash.draw('cycles', (el) => {
+    const g = good('cycle_state'); if (!g) { fail(el); return; }
+    const rows = g.data.filter((r) => r.state === sel.state);
+    const W = el.clientWidth || 640, H = 260, m = { t: 20, r: 8, b: 30, l: 44 };
+    const x = d3.scaleBand().domain(rows.map((r) => r.cycle)).range([m.l, W - m.r]).padding(0.3);
+    const vals = rows.map((r) => +r.mean_excess);
+    const y = d3.scaleLinear().domain([Math.min(0, d3.min(vals)) * 1.25, Math.max(0, d3.max(vals)) * 1.25]).nice().range([H - m.b, m.t]);
+    const svg = svgBase(el, W, H, `Mean 3-month excess return of the 8-year bond in each cycle, ${NAMES[sel.state]}`);
+    svg.append('g').attr('transform', `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5).tickFormat((v) => pct(v, 1)).tickSize(-(W - m.l - m.r))).call((s) => s.select('.domain').remove());
+    svg.append('line').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y(0)).attr('y2', y(0)).style('stroke', 'var(--cds-chart-axis)');
+    const tipHolder = {};
+    svg.append('g').selectAll('rect').data(rows).join('rect')
+      .attr('x', (r) => x(r.cycle)).attr('width', x.bandwidth())
+      .attr('y', (r) => Math.min(y(0), y(+r.mean_excess))).attr('height', (r) => Math.max(1, Math.abs(y(+r.mean_excess) - y(0))))
+      .style('fill', (r) => (r.sample === 'reserved' ? col(1) : col(0)))
+      .on('mousemove', (ev, r) => { const [px, py] = d3.pointer(ev, el); tipHolder.t && tipHolder.t.show(`${r.cycle} cycle (${r.sample})\n${NAMES[sel.state]}: ${pct(+r.mean_excess, 2, true)}\n${r.months} months`, px, py); })
+      .on('mouseleave', () => tipHolder.t && tipHolder.t.hide());
+    svg.append('g').selectAll('text.v').data(rows).join('text')
+      .attr('x', (r) => x(r.cycle) + x.bandwidth() / 2).attr('text-anchor', 'middle')
+      .attr('y', (r) => (+r.mean_excess >= 0 ? y(+r.mean_excess) - 5 : y(+r.mean_excess) + 14))
+      .style('fill', 'var(--color-fg)').text((r) => pct(+r.mean_excess, 2, true));
+    svg.append('g').attr('transform', `translate(0,${H - m.b})`).selectAll('text').data(rows).join('text')
+      .attr('x', (r) => x(r.cycle) + x.bandwidth() / 2).attr('y', 20).attr('text-anchor', 'middle').text((r) => r.cycle);
+    el.replaceChildren(svg.node());
+    tipHolder.t = mkTip(el);
+  });
+
+  // ---------- trades table
+  dash.draw('trades', (tb) => {
+    const g = good('trades'); if (!g) { tb.replaceChildren(); return; }
+    const rows = d3.select(tb).selectAll('tr').data(g.data).join('tr').attr('data-key', (r) => encodeURIComponent(r.execution_date));
+    rows.selectAll('td').data((r) => [
+      { v: r.execution_date, c: '' },
+      { v: r.action, c: '' },
+      { v: NAMES[r.decision_state] || r.decision_state, c: '' },
+      { v: d3.format('.0%')(+r.weight), c: 'num' },
+      { v: pct(+r.cost, 2), c: 'num' },
+      { v: r.sample, c: '' }
+    ]).join('td').attr('class', (d) => d.c).text((d) => d.v);
+  });
+
+  // ---------- controls
+  function hook(id, key, name) {
+    const s = document.getElementById(id);
+    if (s) s.addEventListener('change', () => { sel[key] = s.value; dash.draw(name); });
+  }
+  hook('sel-target', 'target', 'forest');
+  hook('sel-horizon', 'horizon', 'forest');
+  hook('sel-state', 'state', 'cycles');
+})();
+</script>
+<script>
+window.__ready = true; dash.renderAll();
+let _t; window.addEventListener('resize', () => { clearTimeout(_t); _t = setTimeout(dash.renderAll, 120); });
+</script>
+</body></html>

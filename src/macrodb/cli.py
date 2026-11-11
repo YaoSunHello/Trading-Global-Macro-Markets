@@ -33,7 +33,15 @@ def main(argv=None) -> int:
     p.add_argument("series", nargs="+"); p.add_argument("--start"); p.add_argument("--end")
     p.add_argument("--provider", nargs="*"); p.add_argument("--as-of"); p.add_argument("--vintage", default="latest")
     p.add_argument("--quality", default="usable"); p.add_argument("--wide", action="store_true")
+    p.add_argument("--include-estimates", action="store_true", help="fill gaps with explicitly labeled approved estimates")
+    p.add_argument("--exclude-estimates", action="store_true", help="show official source observations only")
+    p = sub.add_parser("estimate-month", help="store an approved geometric estimate between adjacent official FRED months")
+    p.add_argument("series"); p.add_argument("month"); p.add_argument("value", type=float)
     sub.add_parser("series", help="list canonical series")
+    p = sub.add_parser("policy-events", help="list centrally stored FOMC announcements")
+    p.add_argument("--start"); p.add_argument("--end")
+    p = sub.add_parser("import-policy-cache", help="one-time offline migration of the former research source cache")
+    p.add_argument("path"); p.add_argument("--as-of")
     a = ap.parse_args(argv)
 
     load_dotenv()
@@ -60,10 +68,19 @@ def main(argv=None) -> int:
             print(p)
     elif a.cmd == "series":
         print(MacroDB(st, con=con).list_series().to_string(index=False))
+    elif a.cmd == "policy-events":
+        print(MacroDB(st, con=con).policy_events(a.start, a.end).to_string(index=False))
+    elif a.cmd == "import-policy-cache":
+        from .policy import PolicyIngester
+        catalog.sync_all(con, st, registry)
+        print(json.dumps(PolicyIngester(con, st, registry).import_cache(a.path, a.as_of)))
     elif a.cmd == "query":
         df = MacroDB(st, con=con).get(a.series, a.start, a.end, a.provider, as_of=a.as_of, vintage=a.vintage,
-                                      quality=a.quality, wide=a.wide)
+                                      quality=a.quality, wide=a.wide, include_estimates=not a.exclude_estimates)
         print(df.to_string())
+    elif a.cmd == "estimate-month":
+        from .estimates import record_geometric_estimate
+        print(json.dumps({"estimate_id": record_geometric_estimate(MacroDB(st, con=con), a.series, a.month, a.value)}))
     return 0
 
 

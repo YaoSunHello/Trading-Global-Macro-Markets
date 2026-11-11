@@ -49,11 +49,14 @@ def inputs_table(m: Measure) -> pd.DataFrame:
     cols = ["measure", "series_id", "obs_month", "period_end", "first_release_ts", "release_ts", "vintage_date", "decision_ts", "info_lag_days",
             "availability_basis", "n_obs_in_vintage", "idx", "idx_t3", "idx_t6", "idx_t12"] + MEASURE_COLS + \
            [c for c in p.columns if c.startswith(("q25_", "q75_", "n_exp_"))]
+    cols += [c for c in ("n_estimated_inputs", "estimated_observation_months", "input_availability_ts") if c in p]
     out = p[cols].copy()
     out = out.join(m.rs[[c for c in m.rs.columns if c.startswith("rev_scale_") and not c.startswith("rev_scale_is")]])
     for c in ("obs_month", "period_end", "vintage_date"):
         out[c] = out[c].dt.date.astype(str)
-    for c in ("first_release_ts", "release_ts", "decision_ts"):
+    for c in ("first_release_ts", "release_ts", "decision_ts", "input_availability_ts"):
+        if c not in out:
+            continue
         out[c] = out[c].map(iso)
     out["calibration_note"] = "thresholds use yoy of months strictly before obs_month, from this vintage only (past-only)"
     out["decision_ts_assumption"] = "decision at 16:00 ET close of the last bond-market session of the month; CPI release assumed 08:30 ET on vintage_date"
@@ -88,11 +91,14 @@ def history_table(m: Measure) -> pd.DataFrame:
                 ag[(kind, r, p)] = (M_.eq(st, axis=0).sum(axis=1) / M_.notna().sum(axis=1)).where(st.notna())
     h["rule_agreement_share"] = [ag[(k, r, p)].get(d, np.nan) for k, r, p, d in zip(h.rule_kind, h.rule_id, h.persistence, h.decision_date)]
     h["obs_month"] = h["decision_date"].map(m.panel["obs_month"]).dt.date.astype(str)
+    estimate_cols = [c for c in ("n_estimated_inputs", "estimated_observation_months") if c in m.panel]
+    for c in estimate_cols:
+        h[c] = h["decision_date"].map(m.panel[c])
     h["decision_date"] = h["decision_date"].dt.date.astype(str)
     cols = ["decision_date", "measure", "obs_month", "rule_kind", "rule_id", "persistence", "state", "state_label", "raw_state", "measure_value",
             "lower", "upper", "margin", "rev_scale", "rev_scale_is_prior", "margin_in_rev_units", "confidence_tier", "state_age_decisions",
             "rule_agreement_share", "calibration"]
-    return h[cols]
+    return h[cols + estimate_cols]
 
 
 # ------------------------------------------------------------------------------------------- coverage

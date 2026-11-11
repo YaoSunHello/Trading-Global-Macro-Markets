@@ -14,7 +14,9 @@ def par_bond_return(y0: np.ndarray, y1: np.ndarray, n_years: float, tau: np.ndar
     N = 2.0 * (n_years - tau)
     j = y1 / 2.0
     c = y0 / 2.0
-    price = c / j * (1.0 - (1.0 + j) ** (-N)) + (1.0 + j) ** (-N)
+    discount = (1.0 + j) ** (-N)
+    annuity = np.divide(1.0 - discount, j, out=np.array(N, dtype=float, copy=True), where=j != 0)
+    price = c * annuity + discount
     return y0 * tau + (price - 1.0)
 
 

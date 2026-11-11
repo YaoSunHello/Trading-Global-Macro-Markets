@@ -77,7 +77,7 @@ class SilverBuilder:
         freq, unit_id, canon_factor, method, threshold = meta
         df = self.con.execute("""
             SELECT b.bronze_id, b.provider_id, b.source_series_id, b.field_id, b.obs_date_raw, b.observation_date AS obs_date,
-                   b.value_raw, b.value_num, b.realtime_start, b.published_at, b.ingested_at,
+                   b.value_raw, b.value_num, b.realtime_start, b.published_at, b.ingested_at, b.source_attrs,
                    ps.pit_support, nu.to_base_factor AS native_factor, f.is_price_like
             FROM bronze_observation b
             JOIN ref_provider_series ps USING (provider_id, source_series_id, field_id)
@@ -89,6 +89,7 @@ class SilverBuilder:
             return 0
 
         flags: list[list[str]] = [[] for _ in range(len(df))]
+        df["is_estimate"] = df.source_attrs.map(lambda a: bool(json.loads(a or "{}").get("is_estimate")))
 
         def flag(i, name):
             if name not in flags[i]:
@@ -124,7 +125,9 @@ class SilverBuilder:
         avail, reliable = [], []
         for i, r in enumerate(df.itertuples()):
             ts = None
-            if r.pit_support == "vintage" and not pd.isna(r.realtime_start):
+            if r.is_estimate:
+                flag(i, "ESTIMATED")
+            elif r.pit_support == "vintage" and not pd.isna(r.realtime_start):
                 ts = pd.Timestamp(r.realtime_start)
             elif r.pit_support == "publication_ts" and not pd.isna(r.published_at):
                 ts = r.published_at
@@ -141,7 +144,7 @@ class SilverBuilder:
         # -- duplicate classification within (provider, source series, field, normalised period)
         df["dup_class"] = "unique"
         key = ["provider_id", "source_series_id", "field_id", "period_start"]
-        for _, g in df[df["period_start"].notna()].groupby(key, sort=False):
+        for _, g in df[df["period_start"].notna() & ~df.is_estimate].groupby(key, sort=False):
             if len(g) < 2:
                 continue
             if len(_vkeys(g)) == 1:
@@ -161,7 +164,7 @@ class SilverBuilder:
             if r.field_id == "volume" and not pd.isna(r.value) and r.value < 0:
                 flag(i, "NEGATIVE_VOLUME")
 
-        self._outliers(df, self._latest_idx(df), method, threshold, flag)
+        self._outliers(df, self._latest_idx(df[~df.is_estimate]), method, threshold, flag)
 
         status = [_status(f) for f in flags]
 
