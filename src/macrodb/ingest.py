@@ -15,6 +15,7 @@ from .http import ProviderError
 from .providers.base import FetchedPage, SeriesRequest
 from .registry import ProviderRegistry
 from .settings import Settings
+from .timeutil import period_start
 
 log = logging.getLogger(__name__)
 
@@ -64,9 +65,26 @@ class Ingester:
     def _since(self, adapter, req: SeriesRequest, mode: str):
         if mode != "incremental" or adapter.incremental != "overlap":
             return None
-        d = self.con.execute("SELECT max(observation_date) FROM bronze_observation WHERE provider_id=? AND source_series_id=?",
-                             [req.provider_id, req.source_series_id]).fetchone()[0]
-        return d - timedelta(days=adapter.overlap_days) if d else None
+        today = self._now().date()
+        latest, count = self.con.execute("""
+            SELECT max(observation_date) FILTER (WHERE observation_date <= ?), count(*)
+            FROM bronze_observation WHERE provider_id=? AND source_series_id=?
+        """, [today, req.provider_id, req.source_series_id]).fetchone()
+        if not count:
+            return None
+        last_refresh = self.con.execute("""
+            SELECT max(b.started_at)::DATE
+            FROM prov_ingestion_task t JOIN prov_batch b USING (batch_id)
+            WHERE t.provider_id=? AND t.source_series_id=? AND t.status IN ('ok', 'empty')
+                  AND b.finished_at IS NOT NULL
+        """, [req.provider_id, req.source_series_id]).fetchone()[0]
+        since = today - timedelta(days=adapter.overlap_days)
+        if last_refresh or latest:
+            since = min(since, last_refresh or latest)
+        # A newly published monthly/quarterly figure can describe an older observation period.
+        if req.frequency_id in ("M", "Q", "A") and latest:
+            since = min(since, latest)
+        return period_start(since, req.frequency_id)
 
     # ------------------------------------------------------------------ run
     def run(self, series_ids=None, providers=None, mode: str = "incremental", include_disabled: bool = False,

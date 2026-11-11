@@ -69,13 +69,13 @@ class ProviderAdapter(ABC):
       * fetch() performs the (paged) HTTP calls and returns every raw payload plus its parsed rows.
       * Adapters never write to the database and never transform values (that is Silver's job).
       * `incremental` declares how incremental updates work:
-          'overlap'  -> caller passes `since` = last stored observation - overlap_days
+          'overlap'  -> caller passes a rolling window, extended for missed refreshes and release periods
           'full'     -> provider returns full history/vintages; caller always refetches (dedup by hash)
     """
 
     provider_id: str = ""
     incremental: str = "overlap"
-    overlap_days: int = 45
+    overlap_days: int = 30
 
     def __init__(self, http: HttpClient, config: dict | None = None):
         self.http = http

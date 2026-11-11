@@ -19,7 +19,6 @@ class TreasuryFiscalDataAdapter(ProviderAdapter):
 
     provider_id = "treasury"
     incremental = "overlap"
-    overlap_days = 100   # monthly data; revisions possible
 
     def fetch(self, req: SeriesRequest, since: date | None = None, until: date | None = None) -> FetchResult:
         p = req.params

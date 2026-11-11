@@ -22,7 +22,7 @@ def main(argv=None) -> int:
     sub.add_parser("init", help="create schema and sync providers/reference/catalog from config")
     p = sub.add_parser("ingest", help="fetch -> raw archive -> Bronze")
     p.add_argument("--series", nargs="*"); p.add_argument("--provider", nargs="*")
-    p.add_argument("--full", action="store_true", help="refetch full history instead of incremental window")
+    p.add_argument("--full", action="store_true", help="refetch full history instead of the 30-day refresh/catch-up window")
     p.add_argument("--include-disabled", action="store_true")
     p = sub.add_parser("build-silver", help="Bronze -> Silver for pending series")
     p.add_argument("--series", nargs="*"); p.add_argument("--full", action="store_true", help="rebuild every series")

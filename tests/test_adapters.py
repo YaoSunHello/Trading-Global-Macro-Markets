@@ -1,8 +1,9 @@
 import json
+from datetime import date
 
 import pytest
 
-from conftest import ecb_csv, yahoo_json
+from conftest import ecb_csv, fred_json, yahoo_json
 from macrodb.http import ProviderError
 from macrodb.providers.base import SeriesRequest
 from macrodb.providers.ecb import EcbAdapter
@@ -35,6 +36,25 @@ def test_fred_parse_vintages_and_error_payload():
     assert count == 2 and str(obs[1].realtime_start) == "2024-03-08" and str(obs[1].realtime_end) == "9999-12-31"
     with pytest.raises(ProviderError, match="Bad Request"):
         FredAdapter.parse(json.dumps({"error_code": 400, "error_message": "Bad Request."}).encode(), req("fred"))
+
+
+def test_fred_fallback_and_pagination_preserve_observation_window(http, monkeypatch):
+    monkeypatch.setenv("FRED_API_KEY", "test-key")
+    monkeypatch.setattr("macrodb.providers.fred.PAGE", 1)
+    def handler(params):
+        if "realtime_start" in params:
+            return 400, b'{"error_message":"Too many vintage dates"}', "application/json"
+        d = "2024-03-01" if params["offset"] == 0 else "2024-03-04"
+        return 200, fred_json([(d, "4.0", "2024-03-10")], count=2), "application/json"
+    http.on("api.stlouisfed.org", handler)
+    result = FredAdapter(http, {"auth_env_var": "FRED_API_KEY"}).fetch(
+        req("fred"), since=date(2024, 2, 9), until=date(2024, 3, 10))
+    assert len(http.calls) == 3 and len(result.pages) == 2
+    for _, params in http.calls:
+        assert params["observation_start"] == "2024-02-09"
+        assert params["observation_end"] == "2024-03-10"
+    assert all(o.realtime_start is None for page in result.pages for o in page.observations)
+    assert "no vintage history" in result.warnings[0]
 
 
 def test_treasury_parse():

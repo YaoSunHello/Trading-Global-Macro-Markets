@@ -18,7 +18,6 @@ class YahooAdapter(ProviderAdapter):
 
     provider_id = "yahoo"
     incremental = "overlap"
-    overlap_days = 10
 
     def fetch(self, req: SeriesRequest, since: date | None = None, until: date | None = None) -> FetchResult:
         url = f"{BASE}/{req.source_series_id}"

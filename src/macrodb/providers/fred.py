@@ -12,26 +12,26 @@ PAGE = 100000
 
 
 class FredAdapter(ProviderAdapter):
-    """FRED + ALFRED. Always requests the full vintage history (realtime window 1776-07-04..9999-12-31)
-    so every revision is captured with its `realtime_start` (the date that value first became current).
+    """FRED + ALFRED. Limits observation dates during incremental refreshes, but keeps the full realtime
+    window (1776-07-04..9999-12-31) so fetched vintages retain their original `realtime_start`.
 
     Caveats (documented in docs/PROVIDERS.md): for observations that pre-date ALFRED's archive, the
     earliest realtime_start is the archive start, not the true first-release date."""
 
     provider_id = "fred"
-    incremental = "full"          # clipping realtime windows would corrupt realtime_start; refetch + dedup
+    incremental = "overlap"
 
     def fetch(self, req: SeriesRequest, since: date | None = None, until: date | None = None) -> FetchResult:
         key = self.require_credential()
         try:
-            return self._fetch(req, key, vintages=True)
+            return self._fetch(req, key, vintages=True, since=since, until=until)
         except ProviderError as e:
             if "vintage dates" not in str(e):
                 raise
         # Too many vintage dates (FRED caps a request at 2000; typical for long daily series).
         # Fall back to current values only. The default realtime window would stamp every row with today's
         # date, so realtime fields are dropped: the rows carry NO availability info and Silver flags them.
-        res = self._fetch(req, key, vintages=False)
+        res = self._fetch(req, key, vintages=False, since=since, until=until)
         for page in res.pages:
             for o in page.observations:
                 o.realtime_start = o.realtime_end = None
@@ -39,10 +39,15 @@ class FredAdapter(ProviderAdapter):
                             "(point-in-time unavailable for this series)")
         return res
 
-    def _fetch(self, req: SeriesRequest, key: str, vintages: bool) -> FetchResult:
+    def _fetch(self, req: SeriesRequest, key: str, vintages: bool,
+               since: date | None = None, until: date | None = None) -> FetchResult:
         res, offset = FetchResult(), 0
         while True:
             params = {"series_id": req.source_series_id, "file_type": "json", "limit": PAGE, "offset": offset}
+            if since:
+                params["observation_start"] = since.isoformat()
+            if until:
+                params["observation_end"] = until.isoformat()
             if vintages:
                 params.update(realtime_start="1776-07-04", realtime_end="9999-12-31")
             r = self.http.get(BASE, params={**params, "api_key": key})

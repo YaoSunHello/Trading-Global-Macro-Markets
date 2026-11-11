@@ -1,12 +1,13 @@
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 
 import duckdb
 import pytest
 import yaml
 
-from conftest import CONFIG, ecb_csv, fred_json, route_fred
+from conftest import CONFIG, ecb_csv, fred_json, route_fred, yahoo_json
 from macrodb import catalog
 from macrodb.archive import RawArchive
 from macrodb.http import HttpClient, ProviderError
@@ -96,13 +97,100 @@ def test_one_failing_series_does_not_abort_batch(ingester, http, synced):
 
 
 def test_ecb_incremental_uses_overlap_window(ingester, http, synced):
+    ingester._now = lambda: datetime(2024, 3, 10)
     http.on("data-api.ecb.europa.eu", lambda p: (200, ecb_csv([("2024-03-01", "1.08")]), "text/csv"))
     ingester.run(series_ids=[EUR])
     ingester.run(series_ids=[EUR])
     assert "startPeriod" not in http.calls[0][1]
-    assert http.calls[1][1]["startPeriod"] == "2024-01-16"               # 2024-03-01 minus 45 days
+    assert http.calls[1][1]["startPeriod"] == "2024-02-09"               # refresh date minus 30 days
     ingester.run(series_ids=[EUR], mode="full")
     assert "startPeriod" not in http.calls[2][1]
+
+
+def test_missed_refreshes_extend_window_but_failures_do_not_advance_it(ingester, http, synced):
+    ingester._now = lambda: datetime(2024, 3, 1)
+    http.on("data-api.ecb.europa.eu", lambda p: (200, ecb_csv([("2024-02-29", "1.08")]), "text/csv"))
+    ingester.run(series_ids=[EUR])
+    ingester._now = lambda: datetime(2024, 4, 15)
+    http.routes.clear()
+    http.on("data-api.ecb.europa.eu", lambda p: (500, b"unavailable", "text/plain"))
+    assert ingester.run(series_ids=[EUR])["errors"] == 1
+    assert http.calls[-1][1]["startPeriod"] == "2024-03-01"
+    ingester._now = lambda: datetime(2024, 4, 20)
+    http.routes.clear()
+    http.on("data-api.ecb.europa.eu", lambda p: (200, ecb_csv([("2024-04-19", "1.09")]), "text/csv"))
+    ingester.run(series_ids=[EUR])
+    assert http.calls[-1][1]["startPeriod"] == "2024-03-01"
+
+
+def test_stale_daily_observations_and_empty_refresh_do_not_expand_window(ingester, http, synced):
+    ingester._now = lambda: datetime(2024, 3, 10)
+    http.on("data-api.ecb.europa.eu", lambda p: (200, ecb_csv([("2020-01-02", "1.08")]), "text/csv"))
+    ingester.run(series_ids=[EUR])
+    http.routes.clear()
+    http.on("data-api.ecb.europa.eu", lambda p: (404, b"no data", "text/plain"))
+    assert ingester.run(series_ids=[EUR])["status"] == "ok"
+    assert http.calls[-1][1]["startPeriod"] == "2024-02-09"
+    ingester._now = lambda: datetime(2024, 4, 15)
+    ingester.run(series_ids=[EUR])
+    assert http.calls[-1][1]["startPeriod"] == "2024-03-10"
+
+
+@pytest.mark.parametrize("series_id, source_id, observation_date, expected", [
+    (UNRATE, "UNRATE", "2024-01-01", "2024-01-01"),
+    ("US.GDP.REAL.SAAR", "GDPC1", "2023-10-01", "2023-10-01"),
+])
+def test_low_frequency_refresh_includes_latest_release_period(
+        ingester, http, series_id, source_id, observation_date, expected):
+    ingester._now = lambda: datetime(2024, 3, 10)
+    rows = [(observation_date, "3.7", "2024-02-02")]
+    route_fred(http, {source_id: rows})
+    ingester.run(series_ids=[series_id])
+    assert "observation_start" not in http.calls[-1][1]
+    rows.append((observation_date, "3.8", "2024-03-08"))
+    assert ingester.run(series_ids=[series_id])["rows_new"] == 1
+    assert http.calls[-1][1]["observation_start"] == expected
+
+
+def test_fred_daily_refresh_bounds_observations_not_vintage_dates(ingester, http, synced):
+    ingester._now = lambda: datetime(2024, 3, 10)
+    route_fred(http, {"DGS10": [("2024-03-01", "4.0", "2024-03-04")]})
+    series_id = "US.TREASURY.CMT.10Y"
+    ingester.run(series_ids=[series_id])
+    assert "observation_start" not in http.calls[-1][1]
+    assert ingester.run(series_ids=[series_id])["rows_new"] == 0
+    params = http.calls[-1][1]
+    assert params["observation_start"] == "2024-02-09"
+    assert params["realtime_start"] == "1776-07-04"
+    assert params["realtime_end"] == "9999-12-31"
+    assert str(synced.execute("select realtime_start from bronze_observation").fetchone()[0]) == "2024-03-04"
+    ingester.run(series_ids=[series_id], mode="full")
+    assert "observation_start" not in http.calls[-1][1]
+
+
+def test_future_projections_do_not_move_refresh_cutoff_into_future(ingester, http):
+    ingester._now = lambda: datetime(2024, 3, 10)
+    route_fred(http, {"GDPPOT": [("2024-01-01", "100", "2024-02-01"), ("2036-10-01", "200", "2024-02-01")]})
+    ingester.run(series_ids=["US.GDP.POTENTIAL.CBO"])
+    ingester.run(series_ids=["US.GDP.POTENTIAL.CBO"])
+    assert http.calls[-1][1]["observation_start"] == "2024-01-01"
+
+
+@pytest.mark.parametrize("provider, series_id, route, payload, key, expected", [
+    ("yahoo", "SPY.close", "finance.yahoo.com",
+     yahoo_json([(1709303400, 1, 2, 0.5, 1.5, 100)]), "period1", 1707436800),
+    ("treasury", "US.TREASURY.AVG_RATE.NOTES", "fiscaldata.treasury.gov",
+     json.dumps({"data": [{"record_date": "2024-02-29", "avg_interest_rate_amt": "3.4"}],
+                 "meta": {"total-pages": 1}}).encode(), "filter", "record_date:gte:2024-02-01"),
+])
+def test_yahoo_and_treasury_use_shared_refresh_window(
+        ingester, http, provider, series_id, route, payload, key, expected):
+    ingester._now = lambda: datetime(2024, 3, 10)
+    http.on(route, lambda p: (200, payload, "application/json"))
+    assert ingester.run(series_ids=[series_id], providers=[provider])["status"] == "ok"
+    assert ingester.run(series_ids=[series_id], providers=[provider])["rows_new"] == 0
+    value = http.calls[-1][1][key]
+    assert value == expected if provider == "yahoo" else expected in value
 
 
 def test_disabled_provider_skipped_unless_requested(ingester, http, synced):

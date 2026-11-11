@@ -20,7 +20,6 @@ class StooqAdapter(ProviderAdapter):
 
     provider_id = "stooq"
     incremental = "overlap"
-    overlap_days = 10
 
     def fetch(self, req: SeriesRequest, since: date | None = None, until: date | None = None) -> FetchResult:
         params = {"s": req.source_series_id.lower(), "i": "d"}

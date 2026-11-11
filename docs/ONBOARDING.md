@@ -39,8 +39,7 @@ to download — add a separate canonical series instead.
    ```python
    class MyAdapter(ProviderAdapter):
        provider_id = "my"
-       incremental = "overlap"      # 'overlap' (caller passes since=last-obs-overlap_days) or 'full'
-       overlap_days = 30
+       incremental = "overlap"      # shared 30-day/catch-up window; 'full' for unsupported date filtering
        def fetch(self, req: SeriesRequest, since=None, until=None) -> FetchResult:
            r = self.http.get(URL, params={...})            # retries/rate limiting handled by HttpClient
            if r.status != 200: raise ProviderError(...)
@@ -68,6 +67,18 @@ macrodb build-silver                # only series with new Bronze rows; --full r
 macrodb report                      # data/reports/report.md + CSVs
 macrodb export                      # Parquet snapshots
 ```
+
+Routine ingestion requests the past 30 calendar days for existing series. After missed runs, the window
+extends back to the last successful refresh (including empty responses). New series fetch full history.
+Monthly, quarterly and annual series include their latest stored non-future observation period and align
+the cutoff to the period start, so delayed releases are not skipped. These low-frequency windows can exceed
+30 days; daily series with old/stale observations do not repeatedly download their full history.
+
+FRED uses `observation_start` to restrict observation dates while retaining the full realtime window for
+the requested observations, preserving original vintage dates. Revisions outside the refresh window are
+not captured until an explicit `macrodb ingest --full`. Existing history is never deleted. Smaller windows
+reduce downloaded rows and potentially pagination, not necessarily the number of requests or the risk of
+provider blocking; configured rate limits and retry backoff still apply.
 
 ```python
 from macrodb import MacroDB

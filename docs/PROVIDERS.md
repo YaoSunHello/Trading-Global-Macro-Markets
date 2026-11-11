@@ -24,10 +24,13 @@ exercised live are from memory of their public documentation and must be re-chec
 * **Yahoo**: the adapter calls the same unofficial chart endpoint as yfinance and archives the raw JSON
   (yfinance itself does not expose raw responses). `adj_close` is restated by Yahoo after dividends/splits; each
   restatement is appended as a new Bronze row (visible as `revision` in Silver, with ingestion-time availability).
-* **FRED/ALFRED vintages**: the adapter always requests the full realtime window, so every revision is stored. For
+* **FRED/ALFRED vintages**: the adapter always requests the full realtime window for the selected observation
+  dates, so their available revisions are stored. For
   observations older than a series' ALFRED archive start, `realtime_start` is the archive start, **not** the true
-  first-release date — such early history is not truly point-in-time. FRED incremental updates are full refetches
-  (clipping the realtime window would rewrite `realtime_start`); idempotent hashing makes this safe.
+  first-release date — such early history is not truly point-in-time. Incremental updates restrict
+  `observation_start`, not the realtime window (clipping realtime would rewrite `realtime_start`).
+  Routine refreshes cover 30 days, extend for missed runs and low-frequency release periods, and deduplicate
+  unchanged facts. New series and explicit `--full` requests fetch full observation history.
 * **ECB / Treasury / Yahoo have no vintages or publication timestamps**: Silver marks them
   `availability_basis = ingestion_only`, `pit_reliable = FALSE`. Revisions made *before* first ingestion are
   invisible; later ones are captured (overlap window re-fetch).
